@@ -44,8 +44,11 @@ export default function LandingHeader() {
         ))}
       </nav>
       <div className={styles.headerActions}>
-        <Link className={styles.headerCta} href="/app">
-          Beta workspace <ArrowUpRight size={16} />
+        <Link className={styles.headerSignIn} href="/signin">
+          Sign in
+        </Link>
+        <Link className={styles.headerCta} href="/signup">
+          Get started <ArrowUpRight size={16} />
         </Link>
         <button
           className={styles.menuButton}

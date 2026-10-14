@@ -92,6 +92,19 @@
   align-items: center;
   gap: 12px;
 }
+.headerSignIn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #33553f;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.headerSignIn:hover {
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
 .headerCta {
   display: inline-flex;
   align-items: center;
@@ -1473,6 +1486,9 @@
   .headerActions {
     gap: 7px;
   }
+  .headerSignIn {
+    font-size: 11px;
+  }
   .menuButton {
     width: 40px;
     height: 44px;
@@ -1828,6 +1844,22 @@
   }
   .policy section p {
     font-size: 14px;
+  }
+}
+@media (max-width: 380px) {
+  .header {
+    padding-left: 14px;
+    padding-right: 14px;
+    gap: 8px;
+  }
+  .headerSignIn {
+    font-size: 10px;
+  }
+  .logo {
+    font-size: 22px;
+  }
+  .headerCta > svg {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

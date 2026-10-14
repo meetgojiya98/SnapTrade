@@ -372,7 +372,7 @@ export function WorkspaceGate({
           ? 'Your portfolio couldn’t be loaded.'
           : empty
             ? 'Add your first brokerage account.'
-            : 'Bring your accounts into focus.'}
+            : 'Sign in to Balance.'}
       </h1>
       <p>
         {failed
@@ -420,6 +420,14 @@ export function WorkspaceGate({
             Check availability <RefreshCw size={14} />
           </button>
         </div>
+      )}
+      {!failed && !empty && (
+        <p className="gate-sync-note">
+          New to Balance?{' '}
+          <a className="text-button" href="/signup">
+            Create your workspace <ArrowRight size={13} />
+          </a>
+        </p>
       )}
       <div className="gate-security">
         <ShieldCheck size={17} />

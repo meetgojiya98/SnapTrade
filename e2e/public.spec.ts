@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const privateApi = /\/api\/(?:status|portfolio|workspace|plans|support)(?:[/?]|$)/;
+const privateApi = /\/api\/(?:status|portfolio|workspace|plans|support|auth)(?:[/?]|$)/;
 
 async function withinViewport(page: Page) {
   await expect
@@ -29,7 +29,7 @@ test('public resources lead through the sample and safe support draft to an info
   await context.route('**/api/status', (route) =>
     route.fulfill({ json: { configured: true, connected: false, requirements: [] } }),
   );
-  for (const path of ['/', '/guide', '/support', '/privacy']) {
+  for (const path of ['/', '/guide', '/support', '/privacy', '/signin', '/signup']) {
     const response = await page.goto(path);
     expect(response?.status(), `${path} response`).toBe(200);
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
@@ -130,7 +130,7 @@ test('public resources lead through the sample and safe support draft to an info
     .focus();
   await guide.keyboard.press('Enter');
   await expect(
-    guide.getByRole('heading', { name: 'Bring your accounts into focus.', exact: true }),
+    guide.getByRole('heading', { name: 'Sign in to Balance.', exact: true }),
   ).toBeVisible();
   await expect(guide.getByRole('list', { name: 'Before you connect', exact: true })).toContainText(
     'SnapTrade Personal',
@@ -172,8 +172,27 @@ test('the landing simulation and mobile navigation work with a keyboard without 
   await before.focus();
   await page.keyboard.press('Enter');
   await expect(preview).toHaveText(current!);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await withinViewport(page);
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await withinViewport(page);
+    await expect(
+      page.getByRole('banner').getByRole('link', { name: 'Sign in', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('banner').getByRole('link', { name: 'Get started', exact: true }),
+    ).toBeVisible();
+    for (const control of [
+      page.getByRole('banner').getByRole('link', { name: 'Balance home', exact: true }),
+      page.getByRole('banner').getByRole('link', { name: 'Sign in', exact: true }),
+      page.getByRole('banner').getByRole('link', { name: 'Get started', exact: true }),
+      page.getByRole('button', { name: 'Open navigation', exact: true }),
+    ]) {
+      const bounds = await control.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    }
+  }
   const menuButton = page.getByRole('button', { name: 'Open navigation', exact: true });
   await menuButton.focus();
   await page.keyboard.press('Enter');
@@ -206,4 +225,95 @@ test('the landing simulation and mobile navigation work with a keyboard without 
   await expect(page).toHaveURL(/\/privacy$/);
   await withinViewport(page);
   expect(privateRequests).toEqual([]);
+});
+
+test('sign-in and signup explain the Personal account journey and start OAuth only after explicit continuation', async ({
+  page,
+  context,
+}) => {
+  const apiRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/\/api\//.test(request.url())) apiRequests.push(new URL(request.url()).pathname);
+  });
+  // Verify the UI handoff without creating provider state, identities or grants.
+  await page.route('**/api/auth/login', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<html><body><h1>Authorization handoff reached.</h1></body></html>',
+    }),
+  );
+  await page.goto('/');
+  const banner = page.getByRole('banner');
+  const signIn = banner.getByRole('link', { name: 'Sign in', exact: true });
+  await expect(signIn).toHaveAttribute('href', '/signin');
+  await expect(banner.getByRole('link', { name: 'Get started', exact: true })).toHaveAttribute(
+    'href',
+    '/signup',
+  );
+  await signIn.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/signin$/);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Sign in to Balance.', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Account access', exact: true })
+      .getByRole('link', { name: 'Sign in', exact: true }),
+  ).toHaveAttribute('aria-current', 'page');
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: 'Create your workspace', exact: true })
+    .focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/signup$/);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Create your Balance workspace.', exact: true }),
+  ).toBeVisible();
+  const setup = page.getByRole('list', { name: 'Create your connected workspace', exact: true });
+  await expect(setup).toContainText('choose Personal, sign up, and verify your email');
+  await expect(setup).toContainText('returning to Balance');
+  const dashboard = page.getByRole('link', { name: 'Open SnapTrade Personal', exact: true });
+  await expect(dashboard).toHaveAttribute('href', 'https://dashboard.snaptrade.com');
+  await expect(dashboard).toHaveAttribute('target', '_blank');
+  await expect(dashboard).toHaveAttribute('rel', /noreferrer/);
+  await expect(
+    page.getByRole('link', { name: 'Follow SnapTrade’s account setup guide', exact: true }),
+  ).toHaveAttribute('href', 'https://snaptrade.com/personal-account-setup');
+  await expect(page.getByRole('main')).toContainText('do not need a separate Balance password');
+  await expect(page.getByRole('main')).toContainText('CIBC');
+  await expect(page.getByRole('main')).toContainText('up to 5 users');
+  await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+  expect(apiRequests).toEqual([]);
+  expect(
+    (await context.cookies()).filter((cookie) => /balance_(?:login|session)/.test(cookie.name)),
+  ).toEqual([]);
+  const create = page.getByRole('link', { name: 'Create workspace with SnapTrade', exact: true });
+  await expect(create).toHaveAttribute('href', '/api/auth/login');
+  await create.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('heading', { name: 'Authorization handoff reached.', exact: true }),
+  ).toBeVisible();
+  expect(apiRequests).toEqual(['/api/auth/login']);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/signup$/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await withinViewport(page);
+  await page.getByRole('link', { name: 'Sign in instead', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/signin$/);
+  await withinViewport(page);
+  await expect(
+    page.getByRole('link', { name: 'Open your workspace', exact: true }),
+  ).toHaveAttribute('href', '/app');
+  const continueSignIn = page.getByRole('link', { name: 'Sign in with SnapTrade', exact: true });
+  await expect(continueSignIn).toHaveAttribute('href', '/api/auth/login');
+  expect(apiRequests).toEqual(['/api/auth/login']);
+  await continueSignIn.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('heading', { name: 'Authorization handoff reached.', exact: true }),
+  ).toBeVisible();
+  expect(apiRequests).toEqual(['/api/auth/login', '/api/auth/login']);
 });

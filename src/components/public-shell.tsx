@@ -35,9 +35,14 @@ export default function PublicShell({
             Privacy
           </Link>
         </nav>
-        <Link href="/app" className={styles.workspace}>
-          Open workspace <ArrowUpRight size={15} />
-        </Link>
+        <div className={styles.headerActions}>
+          <Link href="/signin" className={styles.signIn}>
+            Sign in
+          </Link>
+          <Link href="/app" className={styles.workspace}>
+            Open workspace <ArrowUpRight size={15} />
+          </Link>
+        </div>
       </header>
       <main className={styles.main} id="content" tabIndex={-1}>
         {children}

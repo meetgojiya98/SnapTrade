@@ -104,12 +104,15 @@ export default function GuidePage() {
             </p>
             <ol>
               <li>
-                Sign in to SnapTrade and choose or create a Personal workspace. Add your brokerage
-                there, or use SnapTrade Sandbox for simulated accounts.
+                New to Balance? Start at <Link href="/signup">Create your workspace</Link>. Set up
+                SnapTrade Personal and verify your email, then add your brokerage there or use
+                SnapTrade Sandbox for simulated accounts.
               </li>
               <li>
-                Return to <Link href="/app">your Balance workspace</Link> and choose Connect with
-                SnapTrade.
+                Return to <Link href="/signin">Sign in</Link> and choose Sign in with SnapTrade.
+                Your first authorization opens your Balance workspace; returning users use the same
+                Personal identity to restore their saved data. No separate Balance password is
+                needed.
               </li>
               <li>
                 Review the consent screen at SnapTrade. Balance requests sign-in and read access to

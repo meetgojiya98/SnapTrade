@@ -6,7 +6,7 @@ test('the public entry makes sample data an explicit choice and the demo never c
 }) => {
   const privateRequests: string[] = [];
   page.on('request', (request) => {
-    if (/\/api\/(?:status|portfolio|workspace|plans|support)(?:[/?]|$)/.test(request.url()))
+    if (/\/api\/(?:status|portfolio|workspace|plans|support|auth)(?:[/?]|$)/.test(request.url()))
       privateRequests.push(request.url());
   });
   await page.goto('/');
@@ -109,7 +109,7 @@ test('private workspace loading, failure, and sign-in recovery never display sam
   );
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(
-    page.getByRole('heading', { name: 'Bring your accounts into focus.', exact: true }),
+    page.getByRole('heading', { name: 'Sign in to Balance.', exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole('link', { name: 'Continue with SnapTrade', exact: true }),
@@ -130,7 +130,7 @@ test('signed-out visitors get a direct consent path with no developer configurat
   });
   await page.goto('/app');
   await expect(
-    page.getByRole('heading', { name: 'Bring your accounts into focus.', exact: true }),
+    page.getByRole('heading', { name: 'Sign in to Balance.', exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole('link', { name: 'Continue with SnapTrade', exact: true }),
@@ -600,7 +600,7 @@ test('delayed snapshot reload and logout show their own progress without mislabe
     releaseLogout();
   }
   await expect(
-    page.getByRole('heading', { name: 'Bring your accounts into focus.', exact: true }),
+    page.getByRole('heading', { name: 'Sign in to Balance.', exact: true }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Disconnecting…', exact: true })).toHaveCount(0);
   await expect(page.getByText('Sample workspace', { exact: true })).toHaveCount(0);

@@ -168,7 +168,7 @@ for (const { revoked, warning } of [
       .click();
     await page.getByRole('button', { name: 'Disconnect SnapTrade', exact: true }).click();
     await expect(
-      page.getByRole('heading', { name: 'Bring your accounts into focus.', exact: true }),
+      page.getByRole('heading', { name: 'Sign in to Balance.', exact: true }),
     ).toBeVisible();
     await expect(page.getByText('Sample workspace', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('alert').filter({ hasText: warning })).toBeVisible();

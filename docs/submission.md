@@ -56,7 +56,7 @@ They create sessions/login attempts, workspace policies/plan history/deletion ge
 npm run dev
 ```
 
-Open the exact `APP_URL` origin, then `/app` to sign in or `/demo` to explore. Restart after changing environment values. If using port 3001, update both `APP_URL` and the registered callback to that port.
+Open the exact `APP_URL` origin, then `/signin` for a returning user, `/signup` for Personal registration instructions and first workspace authorization, or `/demo` to explore without an account. SnapTrade hosts registration, email verification, sign-in, and consent. Balance does not issue a separate password. `/app` also offers the sign-in gate if no valid session exists. Restart after changing environment values. If using port 3001, update both `APP_URL` and the registered callback to that port.
 
 ## 3. Deploy the connected application
 
@@ -135,6 +135,8 @@ Explain the bounded heuristic, source freshness versus retrieval time, the cache
 
 After the public OAuth and persistence checks pass, use the [Product Engineer application](https://careers.snaptrade.com/product-engineer) to select the associated Commercial project, provide the public URL, and supply the requested professional profile. This repository does not submit an application on your behalf.
 
+The public application brief requires a useful, focused OAuth app hosted online, with its client secret kept on the backend and its deployed callback registered. Free hosting is accepted; a custom domain and Production OAuth approval are not requirements for the job submission. The application form separately needs the applicant’s name, email, associated Commercial project, app URL, and either a LinkedIn profile or a résumé PDF up to 5 MB. No completed application submission has been verified. Lead a reviewer through `/demo` for nonzero funded trade simulations, then `/app` for actual OAuth and durable Sandbox history; the live cash-only Sandbox correctly produces zero trades.
+
 Suggested project description:
 
 > BALANCE is a read-only portfolio planning workspace for investors with USD stocks and ETFs across brokerage accounts. It turns personal allocation targets into whole-share, account-funded simulations, preserves user-reviewed assumptions, and saves immutable historical plans with their original data. Taxable sales require explicit permission, incomplete data pauses recommendations, and every result exposes its funding and remaining drift. The model excludes execution, fees, taxes, settlement, FX, and a guarantee of global optimality.
@@ -149,9 +151,15 @@ For an incident, correlate a reported reference with Vercel runtime logs, check 
 
 Keep the encryption key stable. A database backup cannot recover encrypted payloads without the matching key. The dedicated Neon project reported a 24-hour restore window on October 14, 2026. The local logical restore drill uses synthetic data and a disposable key; recovery of production data with its original encryption key has not been rehearsed. Before retaining real customer financial records, establish operator-controlled recovery of that key and exercise provider restore in an isolated environment. Never point disposable tests at production or rotate the key without a migration/recovery plan. See [operations](operations.md).
 
-Before wider connected access, finish SnapTrade production approval, register production credentials and intended consent branding, verify supported real brokerage accounts and a second external Personal identity, establish operational alerts and production key recovery, and review company policies. Private support is implemented with an explicit operator allowlist; it has no email notifications or guaranteed response time during the beta. Pricing, billing, and a legal company identity are not invented by this application.
+Before wider connected access, finish SnapTrade production approval, register production credentials and intended consent branding, verify supported real brokerage accounts and a second external Personal identity, rehearse production encryption-key recovery and provider restoration, and review company policies. Operational alerts have been configured and their failure/recovery delivery verified, as recorded below. Private support is implemented with an explicit operator allowlist; it has no email notifications or guaranteed response time during the beta. Pricing, billing, and a legal company identity are not invented by this application.
 
 ## Deployment verification status
+
+### Explicit account entry
+
+The landing header now exposes **Sign in** and **Get started**, leading to dedicated `/signin` and `/signup` pages. New users receive SnapTrade Personal registration and email-verification instructions before authorizing their Balance workspace. Returning users can use the same identity or open an existing browser session directly. The signed-out `/app` gate also names sign-in explicitly. This uses the existing SnapTrade identity, callback, read-only scopes, and encrypted session model; it does not introduce a separate password account.
+
+Local verification passed 226 unit/integration checks and all 44 Chromium checks. The browser suite verifies public entry pages make no private API or authorization requests before explicit continuation, both native OAuth handoffs work, keyboard navigation and canonical/noindex metadata are correct, and auth pages pass desktop/mobile axe checks. Landing account links fit at 320 and 390 pixels. The unchanged Checkly public planning journey also passed against the updated interface. Actual new-account registration is hosted by SnapTrade and is not simulated as a Balance form.
 
 The public project URL is [balance-snaptrade.vercel.app](https://balance-snaptrade.vercel.app), with the intended callback `https://balance-snaptrade.vercel.app/api/auth/callback`.
 

@@ -13,6 +13,8 @@ Built for the [SnapTrade Product Engineer application](https://careers.snaptrade
 ## Product walkthrough
 
 - **`/`** explains the product, supported portfolios, and data controls.
+- **`/signin`** gives returning users an explicit SnapTrade sign-in route and a shortcut to an already connected workspace.
+- **`/signup`** explains SnapTrade Personal registration, email verification, and the first authorization that creates a Balance workspace. Balance does not maintain a separate password account.
 - **`/app`** opens a private SnapTrade workspace. Sign-in, loading, expired-session, and unavailable-data states never substitute fictional holdings.
 - **`/demo`** is an explicit sample workspace. It uses fixed illustrative data, saves sample preferences and plans in this browser, and makes no private API requests.
 - **`/privacy`** explains storage, retention, deletion, and disconnect behavior.
@@ -26,7 +28,7 @@ In a connected workspace, review your targets, cash reserve, asset classificatio
 
 The planner shows proposed moves, before/after allocation, residual cash, and an account funding ledger. Save a named plan to preserve its original holdings, prices, source timestamps, policy, and result. Historical snapshots stay read-only when current prices or preferences change and have a separate historical CSV export. Connected workspaces support up to 30 saved plans; the sample workspace supports 25 local plans.
 
-Connect or repair brokerages through your **SnapTrade Personal dashboard**, then return to reload available snapshots. Balance requests `openid read` and never places orders or moves money.
+Choose **Get started** for a new workspace or **Sign in** to return. SnapTrade hosts registration, sign-in, and consent; opening the public entry pages does not start authorization or request private account data. Connect or repair brokerages through your **SnapTrade Personal dashboard**, then return to reload available snapshots. Balance requests `openid read` and never places orders or moves money.
 
 ## Run locally
 
@@ -52,7 +54,7 @@ The planner buys only eligible securities already held in each selected account.
 
 ## Verification
 
-Local verification on October 14, 2026: **226 unit/integration tests and 10 migration tests**, including real disposable PostgreSQL checks, and **43 Chromium browser tests**. Browser coverage includes onboarding, persistence, historical provenance, failure recovery, public/help journeys, support hydration, mobile layout, and automated WCAG A/AA checks using axe.
+Local verification on October 14, 2026: **226 unit/integration tests and 10 migration tests**, including real disposable PostgreSQL checks, and **44 Chromium browser tests**. Browser coverage includes sign-in/signup entry, onboarding, persistence, historical provenance, failure recovery, public/help journeys, support hydration, mobile layout, and automated WCAG A/AA checks using axe.
 
 ```sh
 npm run typecheck

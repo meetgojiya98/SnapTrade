@@ -15,12 +15,21 @@ test('public resources, connection gate, workspace, dialogs, and mobile navigati
   await page.route('**/api/status', (route) =>
     route.fulfill({ json: { configured: true, connected: false, requirements: [] } }),
   );
-  for (const path of ['/', '/guide', '/support', '/privacy', '/app', '/demo']) {
+  for (const path of [
+    '/',
+    '/guide',
+    '/support',
+    '/privacy',
+    '/signin',
+    '/signup',
+    '/app',
+    '/demo',
+  ]) {
     await page.goto(path);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     if (path === '/app')
       await expect(
-        page.getByRole('heading', { name: 'Bring your accounts into focus.', exact: true }),
+        page.getByRole('heading', { name: 'Sign in to Balance.', exact: true }),
       ).toBeVisible();
     if (path === '/demo')
       await expect(
@@ -58,4 +67,17 @@ test('public resources, connection gate, workspace, dialogs, and mobile navigati
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
     .analyze();
   expect.soft(violations(mobileMenu), 'Mobile navigation accessibility violations').toEqual([]);
+  for (const path of ['/signin', '/signup']) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(1);
+    const authPage = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+      .analyze();
+    expect.soft(violations(authPage), `Mobile ${path} accessibility violations`).toEqual([]);
+  }
 });

@@ -109,6 +109,25 @@
     background 0.2s,
     border-color 0.2s;
 }
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-shrink: 0;
+}
+.signIn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #33553f;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.signIn:hover {
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
 .workspace:hover {
   background: #ecf1e7;
   border-color: #a6b49e;
@@ -186,6 +205,10 @@
   .workspace {
     margin-left: auto;
   }
+  .headerActions {
+    margin-left: auto;
+    gap: 12px;
+  }
   .main {
     padding: 40px 24px 70px !important;
   }
@@ -210,6 +233,9 @@
     font-size: 11px;
     gap: 11px;
     padding: 10px 12px;
+  }
+  .signIn {
+    font-size: 11px;
   }
   .header nav {
     justify-content: space-between;
