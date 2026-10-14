@@ -161,6 +161,8 @@ The landing header now exposes **Sign in** and **Get started**, leading to dedic
 
 Local verification passed 226 unit/integration checks and all 44 Chromium checks. The browser suite verifies public entry pages make no private API or authorization requests before explicit continuation, both native OAuth handoffs work, keyboard navigation and canonical/noindex metadata are correct, and auth pages pass desktop/mobile axe checks. Landing account links fit at 320 and 390 pixels. The unchanged Checkly public planning journey also passed against the updated interface. Actual new-account registration is hosted by SnapTrade and is not simulated as a Balance form.
 
+Application commit `7e6889e` was staged and promoted on October 14, 2026 as deployment `dpl_Cw8M78B7eXciezvk2eENnnEH82et`, Node.js 22. [Release CI passed all 282 checks](https://github.com/meetgojiya98/SnapTrade/actions/runs/38634597830): 226 unit/integration, 10 migration, two logical recovery, and 44 Chromium checks, plus dependency audit, type checking, and production build. The three public journeys also passed against both the optimized local production build and the promoted public alias. Live browser verification confirmed the new header and account pages, the retained Sandbox plan, and the support operator inbox. The real login endpoint returned a no-store 303 to SnapTrade with `openid read`, S256 PKCE, and the registered HTTPS callback. No database migration, scope expansion, or credential rotation was needed.
+
 The public project URL is [balance-snaptrade.vercel.app](https://balance-snaptrade.vercel.app), with the intended callback `https://balance-snaptrade.vercel.app/api/auth/callback`.
 
 ### Private support and operations release — October 14, 2026
