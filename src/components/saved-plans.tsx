@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import type { SavedPlan, SavedPlanSummary } from '@/lib/workspace';
 import type { Plan } from '@/lib/types';
-import { csvCell } from '@/lib/inputs';
+import { accountDisplayName } from '@/lib/account-label';
+import { serializePlanCsv, type PlanExportMetadata } from '@/lib/plan-export';
 import { Dialog } from './workspace-ui';
 import CashProof from './cash-proof';
 
@@ -26,35 +27,9 @@ export function downloadPlan(
   plan: Plan,
   currency: string,
   name: string,
-  metadata: { historical: boolean; asOf: string; demo: boolean },
+  metadata: PlanExportMetadata,
 ) {
-  const rows = [
-    [
-      'Account',
-      'Side',
-      'Symbol',
-      'Shares',
-      `Estimated price (${currency})`,
-      `Estimated value (${currency})`,
-      'Reason',
-    ],
-    ...[...plan.trades]
-      .sort((a, b) => (a.side === 'sell' ? 0 : 1) - (b.side === 'sell' ? 0 : 1))
-      .map((trade) => [
-        trade.accountName,
-        trade.side,
-        trade.symbol,
-        trade.quantity,
-        (trade.priceCents / 100).toFixed(2),
-        (trade.valueCents / 100).toFixed(2),
-        trade.reason,
-      ]),
-  ];
-  const csv = [
-    `# Balance ${metadata.demo ? 'SAMPLE ' : ''}${metadata.historical ? 'HISTORICAL snapshot' : 'simulation'}. Read-only; never executable. No orders placed.`,
-    `# Snapshot as of ${metadata.asOf}. Indicative prices; fees, taxes, FX and settlement are not modeled.`,
-    ...rows.map((row) => row.map(csvCell).join(',')),
-  ].join('\r\n');
+  const csv = serializePlanCsv(plan, currency, metadata);
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
   const link = document.createElement('a');
   link.href = url;
@@ -206,6 +181,9 @@ export function SavedPlanDetail({ plan, onClose }: { plan: SavedPlan; onClose: (
       !plan.preferences.selectedAccountIds.length ||
       plan.preferences.selectedAccountIds.includes(account.id),
   );
+  const accountNames = new Map(
+    plan.source.accounts.map((account) => [account.id, accountDisplayName(account)]),
+  );
   const currency = accounts[0]?.currency || 'USD';
   return (
     <Dialog title={plan.name} onClose={onClose}>
@@ -268,7 +246,7 @@ export function SavedPlanDetail({ plan, onClose }: { plan: SavedPlan; onClose: (
               <strong>
                 {trade.quantity} {trade.symbol}
               </strong>
-              <span>{trade.accountName}</span>
+              <span>{accountNames.get(trade.accountId) || trade.accountName}</span>
               <b>{money(trade.valueCents, currency)}</b>
             </div>
           ))
@@ -294,7 +272,7 @@ export function SavedPlanDetail({ plan, onClose }: { plan: SavedPlan; onClose: (
         <h3>Source accounts</h3>
         {accounts.map((account) => (
           <p key={account.id}>
-            {account.broker} · {account.name} ·{' '}
+            {accountDisplayName(account)} ·{' '}
             {account.syncedAt ? planDate(account.syncedAt) : 'Freshness unavailable'}
           </p>
         ))}
@@ -333,10 +311,7 @@ export function SavedPlanDetail({ plan, onClose }: { plan: SavedPlan; onClose: (
                         <strong>{position.symbol}</strong>
                         <small>{position.name}</small>
                       </td>
-                      <td>
-                        {account.broker}
-                        <small>{account.name}</small>
-                      </td>
+                      <td>{accountDisplayName(account)}</td>
                       <td className="numeric">
                         {position.quantity.toLocaleString('en-US', { maximumFractionDigits: 6 })}
                       </td>
@@ -370,6 +345,7 @@ export function SavedPlanDetail({ plan, onClose }: { plan: SavedPlan; onClose: (
             historical: true,
             asOf: plan.asOf,
             demo: plan.source.mode === 'demo',
+            savedPlan: plan,
           })
         }
       >

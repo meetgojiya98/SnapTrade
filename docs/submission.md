@@ -70,7 +70,7 @@ Keep credentials out of `NEXT_PUBLIC_*`, source control, and logs. Preserve the 
 
 ## 4. Run automated verification
 
-Recorded local verification on October 14, 2026: **178 unit/integration tests and 10 migration tests**, including disposable real Postgres checks, plus **33 Chromium browser tests** with axe accessibility checks.
+Recorded local verification on October 14, 2026: **184 unit/integration tests and 10 migration tests**, including disposable real Postgres checks, plus **36 Chromium browser tests** with axe accessibility checks.
 
 ```sh
 npm run typecheck

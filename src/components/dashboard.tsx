@@ -33,6 +33,7 @@ import {
   X,
 } from 'lucide-react';
 import { applyClassifications } from '@/lib/classification';
+import { accountDisplayName } from '@/lib/account-label';
 import { inputCents } from '@/lib/inputs';
 import { defaultWorkspacePreferences, summarizePlan } from '@/lib/workspace';
 import type { SavedPlan, SavedPlanSummary, Workspace, WorkspacePreferences } from '@/lib/workspace';
@@ -180,6 +181,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     mode === 'demo' ? 'ready' : 'loading',
   );
   const [loading, setLoading] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [targets, setTargets] = useState<Target[]>(defaultTargets.map((target) => ({ ...target })));
@@ -419,6 +421,11 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     () => portfolio.accounts.filter((a) => !selected.length || selected.includes(a.id)),
     [portfolio, selected],
   );
+  const brokerCounts = new Map<string, number>();
+  for (const account of portfolio.accounts) {
+    const broker = account.broker.trim().toLowerCase();
+    brokerCounts.set(broker, (brokerCounts.get(broker) || 0) + 1);
+  }
   const currencies = [...new Set(accounts.map((a) => a.currency))];
   const currency = currencies.length === 1 ? currencies[0] : 'USD';
   const mixed = currencies.length > 1;
@@ -772,6 +779,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     }
   }
   async function disconnect() {
+    setDisconnecting(true);
     setLoading(true);
     setError('');
     requestController.current?.abort();
@@ -790,6 +798,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     } catch (cause) {
       handleRequestError(cause, 'Could not disconnect.');
     } finally {
+      setDisconnecting(false);
       setLoading(false);
     }
   }
@@ -1177,13 +1186,27 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
                       <button
                         key={a.id}
                         aria-pressed={selected.includes(a.id)}
+                        aria-label={
+                          (brokerCounts.get(a.broker.trim().toLowerCase()) || 0) > 1
+                            ? accountDisplayName(a)
+                            : undefined
+                        }
                         className={selected.includes(a.id) ? 'filter-chip selected' : 'filter-chip'}
                         onClick={() => toggleAccount(a.id)}
                       >
                         <span
                           className={`broker-dot ${brokerInitial(a.broker) === 'ib' ? 'red' : brokerInitial(a.broker) === 'W' ? 'gold' : ''}`}
                         />
-                        {a.broker}
+                        {(brokerCounts.get(a.broker.trim().toLowerCase()) || 0) > 1 ? (
+                          <span className="account-filter-label">
+                            <span>{a.broker}</span>
+                            <small>
+                              {a.name} · {a.number}
+                            </small>
+                          </span>
+                        ) : (
+                          a.broker
+                        )}
                       </button>
                     ))}
                     <span className="filter-caption">
@@ -1758,7 +1781,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
                           >
                             {accounts.map((a) => (
                               <option key={a.id} value={a.id}>
-                                {a.broker} · {a.name}
+                                {accountDisplayName(a)}
                               </option>
                             ))}
                           </select>
@@ -1888,10 +1911,15 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
                       ) : currentPlan.trades.length === 0 ? (
                         <div className="empty-state">
                           <CheckCheck size={30} />
-                          <h3>No practical moves within these boundaries.</h3>
+                          <h3>
+                            {distinct === 0
+                              ? 'No holdings available to rebalance.'
+                              : 'No practical moves within these boundaries.'}
+                          </h3>
                           <p>
-                            You may already be close to target, or account cash and whole shares
-                            limit further progress. Try a contribution or adjust your constraints.
+                            {distinct === 0
+                              ? 'Balance only buys securities already held in each account. Select an account with supported holdings, or save this cash snapshot as a record of your current position.'
+                              : 'You may already be close to target, or account cash and whole shares limit further progress. Try a contribution or adjust your constraints.'}
                           </p>
                         </div>
                       ) : (
@@ -1912,6 +1940,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
                                 key={`${t.accountId}-${t.symbol}-${t.side}-${i}`}
                                 trade={t}
                                 currency={currency}
+                                account={accounts.find((account) => account.id === t.accountId)}
                               />
                             ))}
                         </>
@@ -2155,7 +2184,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
                         disabled={loading}
                         onClick={disconnect}
                       >
-                        {loading ? 'Disconnecting…' : 'Disconnect SnapTrade'}
+                        {disconnecting ? 'Disconnecting…' : 'Disconnect SnapTrade'}
                       </button>
                     )}
                   </div>
@@ -2212,7 +2241,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       {loading && (
         <div className="loading-indicator" role="status">
           <LoaderCircle className="spin" size={17} />
-          Loading your brokerage snapshots…
+          {disconnecting ? 'Disconnecting from SnapTrade…' : 'Loading your brokerage snapshots…'}
         </div>
       )}
       {notice && (
@@ -2648,7 +2677,15 @@ function AllocationRing({
     </div>
   );
 }
-function TradeRow({ trade, currency }: { trade: Trade; currency: string }) {
+function TradeRow({
+  trade,
+  currency,
+  account,
+}: {
+  trade: Trade;
+  currency: string;
+  account?: Account;
+}) {
   return (
     <div className="trade-row">
       <span className={`trade-side ${trade.side}`}>
@@ -2658,7 +2695,7 @@ function TradeRow({ trade, currency }: { trade: Trade; currency: string }) {
         <strong>
           <span>{trade.side === 'buy' ? 'Buy' : 'Sell'}</span> {trade.quantity} {trade.symbol}
         </strong>
-        <span>{trade.accountName}</span>
+        <span>{account ? accountDisplayName(account) : trade.accountName}</span>
         <p>{trade.reason}</p>
       </div>
       <div className="trade-value">

@@ -98,8 +98,13 @@ test('default plan exports five whole-share moves without taxable-account sells'
   );
   expect(moves).toHaveLength(5);
   expect(moves.some((move) => move.side === 'sell')).toBe(true);
+  expect(moves.some((move) => move.account === 'Fidelity · Individual brokerage · ••4821')).toBe(
+    true,
+  );
   expect(
-    moves.some((move) => move.account === 'Individual brokerage' && move.side === 'sell'),
+    moves.some(
+      (move) => move.account === 'Fidelity · Individual brokerage · ••4821' && move.side === 'sell',
+    ),
   ).toBe(false);
   expect(moves.every((move) => Number.isInteger(move.shares) && move.shares > 0)).toBe(true);
   expect(csv).toMatch(/no orders placed/i);

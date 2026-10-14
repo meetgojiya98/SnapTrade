@@ -47,7 +47,7 @@ The planner buys only eligible securities already held in each selected account.
 
 ## Verification
 
-Local verification on October 14, 2026: **178 unit/integration tests and 10 migration tests**, including real disposable PostgreSQL checks, and **33 Chromium browser tests**. Browser coverage includes onboarding, persistence, historical provenance, failure recovery, mobile layout, and automated WCAG A/AA checks using axe.
+Local verification on October 14, 2026: **184 unit/integration tests and 10 migration tests**, including real disposable PostgreSQL checks, and **36 Chromium browser tests**. Browser coverage includes onboarding, persistence, historical provenance, failure recovery, mobile layout, and automated WCAG A/AA checks using axe.
 
 ```sh
 npm run typecheck

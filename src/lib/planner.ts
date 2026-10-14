@@ -1,4 +1,5 @@
 import type { Account, Allocation, AssetClass, Plan, PlanOptions, Target, Trade } from './types';
+import { accountDisplayName } from './account-label';
 
 export const defaultTargets: Target[] = [
   { assetClass: 'us-equity', percent: 50 },
@@ -354,7 +355,7 @@ export function generatePlan(accounts: Account[], options: PlanOptions): Plan {
     } else {
       trades.set(key, {
         accountId: account.source.id,
-        accountName: account.source.name,
+        accountName: accountDisplayName(account.source),
         symbol: security.symbol,
         assetClass: security.assetClass,
         side,

@@ -112,6 +112,6 @@ Keep the encryption key stable across deploys; replacing it makes existing ciphe
 
 ## Verification boundaries
 
-Local verification covers 178 unit/integration tests and 10 migration tests, including disposable real Postgres checks, and 33 Chromium tests. Browser tests exercise simulated connected responses, historical provenance, persistence, recovery, mobile layout, and axe WCAG A/AA checks. These checks establish the implemented contracts within their test environments.
+Local verification covers 184 unit/integration tests and 10 migration tests, including disposable real Postgres checks, and 36 Chromium tests. Browser tests exercise simulated connected responses, historical provenance, persistence, recovery, mobile layout, and axe WCAG A/AA checks. These checks establish the implemented contracts within their test environments.
 
 Real consent, actual brokerage responses, and deployed persistence remain pending verification. Follow the [release walkthrough](submission.md) with registered OAuth credentials, a Personal test user, and the production database before making those claims. Fees, taxes, settlement, execution, FX, margin, and investment outcomes remain outside this simulator's contract.

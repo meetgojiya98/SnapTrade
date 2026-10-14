@@ -4319,3 +4319,20 @@ td {
   line-height: 1.6;
   border-top: 1px solid var(--line);
 }
+
+.filter-chip > span.account-filter-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  text-align: left;
+}
+.account-filter-label small {
+  font-size: 10px;
+  color: #526558;
+  line-height: 1.4;
+}

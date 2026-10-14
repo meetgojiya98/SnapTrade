@@ -1,5 +1,6 @@
 import { ShieldCheck } from 'lucide-react';
 import type { Account, Plan } from '@/lib/types';
+import { accountDisplayName } from '@/lib/account-label';
 
 export default function CashProof({
   accounts,
@@ -68,8 +69,7 @@ export default function CashProof({
               return (
                 <tr key={account.id}>
                   <td>
-                    <strong>{account.broker}</strong>
-                    <small>{account.name}</small>
+                    <strong>{accountDisplayName(account)}</strong>
                   </td>
                   <td className="numeric">{format(cash)}</td>
                   <td className="numeric">+{format(sells)}</td>

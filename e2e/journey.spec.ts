@@ -271,6 +271,9 @@ for (const mode of ['demo', 'live'] as const) {
     expect(csv).toContain('HISTORICAL snapshot');
     expect(csv).toContain('Snapshot as of');
     expect(csv).toContain('never executable');
+    expect(csv).toContain('# Saved policy,"Reserve per account USD 1000.00;');
+    expect(csv).toContain('# Funding equation,');
+    expect(csv).toContain('# Account funding,');
     await snapshot.getByRole('button', { name: 'Close dialog', exact: true }).click();
     await page.getByRole('button', { name: 'Delete Quarterly review', exact: true }).click();
     if (mode === 'live') {
@@ -358,4 +361,262 @@ test('committed workspace deletion clears preferences and history while exposing
   await expect(
     page.getByRole('heading', { name: 'Your first plan belongs here.', exact: true }),
   ).toBeVisible();
+});
+
+test('same-broker accounts with identical names retain their identity in selection and funding', async ({
+  page,
+}) => {
+  const portfolio = livePortfolio();
+  const names = ['Individual', 'IRA Account', 'Individual'];
+  for (const [index, account] of portfolio.accounts.entries()) {
+    account.broker = 'SnapTrade Sandbox';
+    account.name = names[index];
+    account.number = `•••• ${1001 + index}`;
+  }
+  const server = await mockLiveWorkspace(page, portfolio);
+  await page.goto('/app');
+  await expect(
+    page.getByRole('banner').getByText('Connected workspace', { exact: true }),
+  ).toBeVisible();
+  const cash = page.getByRole('button', {
+    name: 'SnapTrade Sandbox · Individual · •••• 1001',
+    exact: true,
+  });
+  const ira = page.getByRole('button', {
+    name: 'SnapTrade Sandbox · IRA Account · •••• 1002',
+    exact: true,
+  });
+  const margin = page.getByRole('button', {
+    name: 'SnapTrade Sandbox · Individual · •••• 1003',
+    exact: true,
+  });
+  await expect(cash).toBeVisible();
+  await expect(ira).toBeVisible();
+  await expect(margin).toBeVisible();
+  await ira.click();
+  await expect(ira).toHaveAttribute('aria-pressed', 'true');
+  await expect(cash).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('region', { name: 'Portfolio value' })).toContainText('$42,135');
+  await expect(page.getByRole('table').getByRole('row')).toHaveCount(5);
+  await expect(page.getByRole('table')).toContainText('NVDA');
+  await expect(page.getByRole('table')).not.toContainText('AAPL');
+  await page.getByRole('button', { name: 'Save workspace preferences', exact: true }).click();
+  await expect
+    .poll(() => server.getWorkspace().preferences.selectedAccountIds)
+    .toEqual([portfolio.accounts[1].id]);
+
+  await page.getByRole('button', { name: /^All accounts/ }).click();
+  await cash.click();
+  await expect(cash).toHaveAttribute('aria-pressed', 'true');
+  await expect(ira).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('region', { name: 'Portfolio value' })).toContainText('$56,720');
+  await expect(page.getByRole('table').getByRole('row')).toHaveCount(6);
+  await expect(page.getByRole('table')).toContainText('AAPL');
+  await expect(page.getByRole('table')).not.toContainText('NVDA');
+  await page.getByRole('button', { name: 'Save workspace preferences', exact: true }).click();
+  await expect
+    .poll(() => server.getWorkspace().preferences.selectedAccountIds)
+    .toEqual([portfolio.accounts[0].id]);
+
+  await page.getByRole('button', { name: /^All accounts/ }).click();
+  await navigateWorkspace(page, 'Rebalance');
+  const destination = page.getByRole('combobox', { name: 'Contribution account', exact: true });
+  const firstIndividual = 'SnapTrade Sandbox · Individual · •••• 1001';
+  const secondIndividual = 'SnapTrade Sandbox · Individual · •••• 1003';
+  await expect(
+    destination.getByRole('option', { name: firstIndividual, exact: true }),
+  ).toHaveAttribute('value', portfolio.accounts[0].id);
+  await expect(
+    destination.getByRole('option', { name: secondIndividual, exact: true }),
+  ).toHaveAttribute('value', portfolio.accounts[2].id);
+  await destination.selectOption({ label: secondIndividual });
+  await page
+    .getByRole('spinbutton', { name: 'Hypothetical contribution', exact: true })
+    .fill('1000');
+  const funding = page.getByRole('table', { name: 'Account funding ledger', exact: true });
+  await expect(
+    funding.getByRole('row').filter({ hasText: '•••• 1001' }).getByRole('cell').nth(1),
+  ).toHaveText('$1,800.00');
+  await expect(
+    funding.getByRole('row').filter({ hasText: '•••• 1003' }).getByRole('cell').nth(1),
+  ).toHaveText('$2,450.00');
+  await expect(
+    page.locator('.trade-row').filter({ hasText: secondIndividual }).first(),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Save plan', exact: true }).click();
+  const saveDialog = page.getByRole('dialog', { name: 'Save this plan', exact: true });
+  await saveDialog
+    .getByRole('textbox', { name: 'Plan name', exact: true })
+    .fill('Distinct account funding');
+  await saveDialog.getByRole('button', { name: 'Save plan snapshot', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Distinct account funding', exact: true }),
+  ).toBeVisible();
+  expect(server.getPlans()[0].contributionAccountId).toBe(portfolio.accounts[2].id);
+  expect(server.getPlans()[0].contributionCents).toBe(100_000);
+  await page.getByRole('button', { name: 'View snapshot', exact: true }).click();
+  const snapshot = page.getByRole('dialog', { name: 'Distinct account funding', exact: true });
+  await expect(
+    snapshot.locator('.snapshot-moves').getByText(secondIndividual, { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    snapshot
+      .getByRole('table', { name: 'Account funding ledger', exact: true })
+      .getByRole('row')
+      .filter({ hasText: '•••• 1003' })
+      .getByRole('cell')
+      .nth(1),
+  ).toHaveText('$2,450.00');
+  await snapshot.getByText('Original holdings and prices', { exact: true }).click();
+  const originalHoldings = snapshot.getByRole('region', {
+    name: 'Historical holdings, scroll horizontally to see all columns',
+    exact: true,
+  });
+  await expect(originalHoldings.getByRole('row').filter({ hasText: '•••• 1001' })).toHaveCount(5);
+  await expect(originalHoldings.getByRole('row').filter({ hasText: '•••• 1003' })).toHaveCount(3);
+  const downloadPending = page.waitForEvent('download');
+  await snapshot.getByRole('button', { name: 'Download historical CSV', exact: true }).click();
+  const download = await downloadPending;
+  const { readFile } = await import('node:fs/promises');
+  const csv = await readFile((await download.path())!, 'utf8');
+  expect(csv).toContain(
+    '# Hypothetical contribution,"USD 1000.00; destination ' + secondIndividual,
+  );
+  expect(csv).toContain(
+    '# Account funding,"' + firstIndividual + '; reported cash USD 1800.00; new cash USD 0.00',
+  );
+  expect(csv).toContain(
+    '# Account funding,"' + secondIndividual + '; reported cash USD 1450.00; new cash USD 1000.00',
+  );
+});
+
+test('delayed snapshot reload and logout show their own progress without mislabeling disconnect', async ({
+  page,
+}) => {
+  const portfolio = livePortfolio();
+  await mockLiveWorkspace(page, portfolio);
+  await page.goto('/app');
+  await expect(
+    page.getByRole('banner').getByText('Connected workspace', { exact: true }),
+  ).toBeVisible();
+  await navigateWorkspace(page, 'Connections');
+  let releaseReload!: () => void;
+  const reloadPending = new Promise<void>((resolve) => {
+    releaseReload = resolve;
+  });
+  await page.route('**/api/portfolio', async (route) => {
+    await reloadPending;
+    await route.fulfill({ json: portfolio });
+  });
+  const reloadRequested = page.waitForRequest('**/api/portfolio');
+  await page.getByRole('button', { name: 'Reload snapshots', exact: true }).click();
+  await reloadRequested;
+  try {
+    await expect(
+      page.getByRole('button', { name: 'Disconnect SnapTrade', exact: true }),
+    ).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Disconnecting…', exact: true })).toHaveCount(0);
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Loading your brokerage snapshots…' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Disconnecting from SnapTrade…' }),
+    ).toHaveCount(0);
+  } finally {
+    releaseReload();
+  }
+  await expect(
+    page.getByRole('button', { name: 'Disconnect SnapTrade', exact: true }),
+  ).toBeEnabled();
+
+  let releaseLogout!: () => void;
+  const logoutPending = new Promise<void>((resolve) => {
+    releaseLogout = resolve;
+  });
+  await page.route('**/api/auth/logout', async (route) => {
+    await logoutPending;
+    await route.fulfill({ json: { disconnected: true, revoked: true } });
+  });
+  await page.getByRole('button', { name: 'Disconnect SnapTrade', exact: true }).click();
+  try {
+    await expect(page.getByRole('button', { name: 'Disconnecting…', exact: true })).toBeDisabled();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Disconnecting from SnapTrade…' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Loading your brokerage snapshots…' }),
+    ).toHaveCount(0);
+  } finally {
+    releaseLogout();
+  }
+  await expect(
+    page.getByRole('heading', { name: 'Bring your accounts into focus.', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Disconnecting…', exact: true })).toHaveCount(0);
+  await expect(page.getByText('Sample workspace', { exact: true })).toHaveCount(0);
+});
+
+test('a cash-only account explains its investment-selection boundary and can save a baseline snapshot', async ({
+  page,
+}) => {
+  const portfolio = livePortfolio();
+  portfolio.accounts = [
+    { ...portfolio.accounts[0], name: 'Cash-only account', cashCents: 1_000_000, positions: [] },
+  ];
+  const server = await mockLiveWorkspace(page, portfolio);
+  await page.goto('/app');
+  await expect(
+    page.getByRole('banner').getByText('Connected workspace', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Portfolio value' })).toContainText('$10,000');
+  await navigateWorkspace(page, 'Rebalance');
+  await expect(
+    page.getByRole('heading', { name: 'No holdings available to rebalance.', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      'Balance only buys securities already held in each account. Select an account with supported holdings, or save this cash snapshot as a record of your current position.',
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'No practical moves within these boundaries.', exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save plan', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Save plan', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Save this plan', exact: true });
+  await dialog.getByRole('textbox', { name: 'Plan name', exact: true }).fill('Cash-only baseline');
+  await dialog.getByRole('button', { name: 'Save plan snapshot', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Cash-only baseline', exact: true }),
+  ).toBeVisible();
+  expect(server.getPlans()).toHaveLength(1);
+  expect(server.getPlans()[0].result.status).toBe('ready');
+  expect(server.getPlans()[0].result.trades).toEqual([]);
+  expect(server.getPlans()[0].source.accounts[0].positions).toEqual([]);
+  expect(server.getPlans()[0].source.accounts[0].cashCents).toBe(1_000_000);
+  expect(server.getPlans()[0].preferences.reserveCents).toBe(25_000);
+  expect(server.getPlans()[0].result.cashAfterCents).toBe(1_000_000);
+  expect(server.getPlans()[0].historical).toBe(true);
+  expect(server.getPlans()[0].executable).toBe(false);
+  await page.getByRole('button', { name: 'View snapshot', exact: true }).click();
+  const historical = page.getByRole('dialog', { name: 'Cash-only baseline', exact: true });
+  await expect(
+    historical.getByText('Historical snapshot · read-only', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    historical.getByText('No proposed moves within the saved boundaries.', { exact: true }),
+  ).toBeVisible();
+  const downloadPending = page.waitForEvent('download');
+  await historical.getByRole('button', { name: 'Download historical CSV', exact: true }).click();
+  const download = await downloadPending;
+  const { readFile } = await import('node:fs/promises');
+  const csv = await readFile((await download.path())!, 'utf8');
+  expect(csv).toContain('# Saved policy,"Reserve per account USD 250.00;');
+  expect(csv).toContain('# Saved result,"Planning base USD 9750.00;');
+  expect(csv).toContain('0 proposed moves');
+  expect(csv).toContain(
+    '# Account funding,"Fidelity · Cash-only account · ••4821; reported cash USD 10000.00;',
+  );
+  expect(csv).toContain('cash after USD 10000.00; protected reserve USD 250.00;');
 });
