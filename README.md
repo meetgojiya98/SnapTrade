@@ -30,6 +30,8 @@ The planner shows proposed moves, before/after allocation, residual cash, and an
 
 Choose **Get started** for a new workspace or **Sign in** to return. SnapTrade hosts registration, sign-in, and consent; opening the public entry pages does not start authorization or request private account data. Connect or repair brokerages through your **SnapTrade Personal dashboard**, then return to reload available snapshots. Balance requests `openid read` and never places orders or moves money.
 
+Use **Sign out** in the workspace header to end the current browser session. Balance deletes that session’s server-stored credentials and clears its temporary portfolio cache, with a warning if cache cleanup cannot be confirmed. Saved preferences, plans, and the SnapTrade authorization are retained. Other open workspace tabs in the same browser clear their private content. **Disconnect SnapTrade** in Connections is a separate action that also attempts to revoke the SnapTrade authorization.
+
 ## Run locally
 
 Requires Node.js 22 and npm.

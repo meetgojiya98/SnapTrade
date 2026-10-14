@@ -23,6 +23,7 @@ import {
   Link2,
   LoaderCircle,
   LockKeyhole,
+  LogOut,
   Menu,
   Plus,
   RefreshCw,
@@ -200,6 +201,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
   );
   const [loading, setLoading] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [targets, setTargets] = useState<Target[]>(defaultTargets.map((target) => ({ ...target })));
@@ -239,6 +241,11 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
   const [undoPlan, setUndoPlan] = useState<SavedPlan | null>(null);
   const requestController = useRef<AbortController | null>(null);
   const privateEpoch = useRef(0);
+  const sessionEnding = useRef(false);
+  const sessionChannel = useRef<BroadcastChannel | null>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const navigationTrigger = useRef<HTMLButtonElement>(null);
+  const restoreNavigationFocus = useRef(true);
 
   const preferences = useMemo<WorkspacePreferences>(
     () => ({
@@ -271,11 +278,26 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
   }
   function clearPrivate() {
     privateEpoch.current += 1;
+    requestController.current?.abort();
+    requestController.current = null;
     setPortfolio(blankPortfolio());
     applyPreferences(defaultWorkspacePreferences);
+    setDraftTargets(defaultTargets.map((target) => ({ ...target })));
     setPlans([]);
     setPlansError('');
     setInspectedPlan(null);
+    setPendingDelete(null);
+    setUndoPlan(null);
+    setPlanName('');
+    setModal(null);
+    setQuery('');
+    setComparison('current');
+    setNotice('');
+    setMobileNav(false);
+    setLoading(false);
+    setPlanBusy(false);
+    setPlansLoading(false);
+    setSavingPreferences(false);
     setContribution('0');
     setContributionAccount('');
     setOnboarded(false);
@@ -294,15 +316,19 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     setError(cause instanceof Error ? cause.message : fallback);
   }
   async function loadLive(hydrate = false) {
-    if (mode === 'demo') return;
+    if (mode === 'demo' || sessionEnding.current) return;
+    const epoch = privateEpoch.current;
     requestController.current?.abort();
     const controller = new AbortController();
     requestController.current = controller;
+    const active = () =>
+      !controller.signal.aborted && epoch === privateEpoch.current && !sessionEnding.current;
     setLoading(true);
     setError('');
     if (hydrate) setGate('loading');
     try {
       const nextStatus = await requestJson<Status>('/api/status', { signal: controller.signal });
+      if (!active()) return;
       setStatus(nextStatus);
       if (!nextStatus.connected) {
         clearPrivate();
@@ -314,7 +340,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
           requestJson<Workspace>('/api/workspace', { signal: controller.signal }),
           requestJson<{ plans: SavedPlanSummary[] }>('/api/plans', { signal: controller.signal }),
         ]);
-        if (controller.signal.aborted) return;
+        if (!active()) return;
         for (const result of [portfolioResult, workspaceResult, historyResult]) {
           if (
             result.status === 'rejected' &&
@@ -345,7 +371,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
         const nextPortfolio = await requestJson<Portfolio>('/api/portfolio', {
           signal: controller.signal,
         });
-        if (controller.signal.aborted) return;
+        if (!active()) return;
         if (nextPortfolio.mode !== 'live')
           throw new Error(
             'The brokerage service returned an unexpected portfolio. Please reconnect.',
@@ -356,7 +382,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       setGate('ready');
       setValuationTime(Date.now());
     } catch (cause) {
-      if (controller.signal.aborted) return;
+      if (!active()) return;
       handleRequestError(cause, 'Your portfolio could not be loaded.');
       if (
         !(cause instanceof WorkspaceRequestError && cause.status === 401) &&
@@ -364,7 +390,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       )
         setGate('error');
     } finally {
-      if (!controller.signal.aborted) setLoading(false);
+      if (active()) setLoading(false);
     }
   }
   useEffect(() => {
@@ -443,6 +469,79 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     window.addEventListener('beforeunload', protectPreferences);
     return () => window.removeEventListener('beforeunload', protectPreferences);
   }, [mode, onboarded, preferencesDirty]);
+
+  useEffect(() => {
+    if (mode !== 'live' || typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel('balance.session');
+    sessionChannel.current = channel;
+    channel.onmessage = (event: MessageEvent<unknown>) => {
+      if (
+        !event.data ||
+        typeof event.data !== 'object' ||
+        !('type' in event.data) ||
+        event.data.type !== 'signed-out'
+      )
+        return;
+      clearPrivate();
+      setError('');
+      setMobileNav(false);
+      setNotice('You were signed out in another tab. Sign in again to continue.');
+    };
+    return () => {
+      sessionChannel.current = null;
+      channel.close();
+    };
+  }, [mode]);
+
+  useEffect(() => {
+    if (!mobileNav) return;
+    const desktop = window.matchMedia('(min-width: 761px)');
+    if (desktop.matches) {
+      setMobileNav(false);
+      return;
+    }
+    const sidebar = sidebarRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    sidebar?.querySelector<HTMLElement>('[aria-current="page"]')?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMobileNav(false);
+      } else if (event.key === 'Tab' && sidebar) {
+        const controls = Array.from(
+          sidebar.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), [tabindex="0"]'),
+        ).filter((element) => element.getClientRects().length > 0);
+        const first = controls[0];
+        const last = controls.at(-1);
+        if (
+          event.shiftKey &&
+          (document.activeElement === first || !sidebar.contains(document.activeElement))
+        ) {
+          event.preventDefault();
+          last?.focus();
+        } else if (
+          !event.shiftKey &&
+          (document.activeElement === last || !sidebar.contains(document.activeElement))
+        ) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    const onResize = () => {
+      if (desktop.matches) setMobileNav(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    desktop.addEventListener('change', onResize);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+      desktop.removeEventListener('change', onResize);
+      if (restoreNavigationFocus.current) navigationTrigger.current?.focus();
+      restoreNavigationFocus.current = true;
+    };
+  }, [mobileNav]);
 
   const accounts = useMemo(
     () => portfolio.accounts.filter((a) => !selected.length || selected.includes(a.id)),
@@ -557,6 +656,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     .reduce((s, t) => s + t.valueCents, 0);
 
   function navigate(next: View) {
+    if (mobileNav) restoreNavigationFocus.current = false;
     setView(next);
     setMobileNav(false);
     setQuery('');
@@ -565,6 +665,10 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     if (next === 'portfolio') url.searchParams.delete('view');
     else url.searchParams.set('view', next);
     window.history.pushState({}, '', `${url.pathname}${url.search}`);
+    requestAnimationFrame(() => {
+      document.getElementById('main')?.focus({ preventScroll: true });
+      window.scrollTo(0, 0);
+    });
   }
   function toggleAccount(id: string) {
     setSelected((previous) =>
@@ -581,7 +685,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     setComparison('current');
   }
   function persistDemo(
-    nextPreferences = preferences,
+    nextPreferences: WorkspacePreferences = parsePreferences(JSON.parse(savedPreferences)),
     nextPlans = demoPlans,
     completed = onboarded,
   ) {
@@ -593,6 +697,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     });
   }
   async function savePreferences() {
+    if (sessionEnding.current || savingPreferences) return;
     const epoch = privateEpoch.current;
     setSavingPreferences(true);
     setError('');
@@ -614,12 +719,14 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
           : 'Workspace preferences saved securely.',
       );
     } catch (cause) {
+      if (epoch !== privateEpoch.current) return;
       handleRequestError(cause, 'Your preferences could not be saved.');
     } finally {
-      setSavingPreferences(false);
+      if (epoch === privateEpoch.current) setSavingPreferences(false);
     }
   }
   function exportPlan() {
+    if (sessionEnding.current) return;
     const freshPlan = generatePlan(accounts, {
       ...options,
       now: mode === 'demo' ? demoTime : new Date().toISOString(),
@@ -638,6 +745,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     setNotice('Simulation exported. No orders were placed.');
   }
   async function savePlan() {
+    if (sessionEnding.current) return;
     const epoch = privateEpoch.current;
     if (planBusy || !planName.trim() || currentPlan.status !== 'ready' || !onboarded) return;
     setPlanBusy(true);
@@ -670,7 +778,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
           result,
         };
         const nextPlans = [saved, ...demoPlans];
-        persistDemo(preferences, nextPlans);
+        persistDemo(undefined, nextPlans);
         setDemoPlans(nextPlans);
       } else {
         const response = await requestJson<{ plan: SavedPlan }>('/api/plans', {
@@ -691,13 +799,14 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       setNotice('Plan snapshot saved. You can find it in Saved plans.');
       navigate('plans');
     } catch (cause) {
+      if (epoch !== privateEpoch.current) return;
       handleRequestError(cause, 'Your plan could not be saved.');
     } finally {
-      setPlanBusy(false);
+      if (epoch === privateEpoch.current) setPlanBusy(false);
     }
   }
   async function reloadPlans() {
-    if (mode === 'demo' || !privateReady) return;
+    if (mode === 'demo' || !privateReady || sessionEnding.current) return;
     const epoch = privateEpoch.current;
     setPlansLoading(true);
     setPlansError('');
@@ -706,6 +815,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       if (epoch !== privateEpoch.current) return;
       setPlans(response.plans);
     } catch (cause) {
+      if (epoch !== privateEpoch.current) return;
       if (cause instanceof WorkspaceRequestError && cause.status === 401)
         handleRequestError(cause, 'Please reconnect.');
       else
@@ -713,10 +823,11 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
           cause instanceof Error ? cause.message : 'Your saved history could not be loaded.',
         );
     } finally {
-      setPlansLoading(false);
+      if (epoch === privateEpoch.current) setPlansLoading(false);
     }
   }
   async function inspectPlan(id: string) {
+    if (sessionEnding.current) return;
     const epoch = privateEpoch.current;
     setPlanBusy(true);
     setError('');
@@ -730,12 +841,14 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       if (!plan) throw new Error('This plan is no longer available. Reload Saved plans.');
       setInspectedPlan(plan);
     } catch (cause) {
+      if (epoch !== privateEpoch.current) return;
       handleRequestError(cause, 'This saved plan could not be opened.');
     } finally {
-      setPlanBusy(false);
+      if (epoch === privateEpoch.current) setPlanBusy(false);
     }
   }
   async function removePlan(plan: SavedPlanSummary) {
+    if (sessionEnding.current) return;
     const epoch = privateEpoch.current;
     setPlanBusy(true);
     setError('');
@@ -743,7 +856,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       if (mode === 'demo') {
         const removed = demoPlans.find((saved) => saved.id === plan.id) || null;
         const nextPlans = demoPlans.filter((saved) => saved.id !== plan.id);
-        persistDemo(preferences, nextPlans);
+        persistDemo(undefined, nextPlans);
         setDemoPlans(nextPlans);
         setUndoPlan(removed);
       } else await requestJson(`/api/plans/${encodeURIComponent(plan.id)}`, { method: 'DELETE' });
@@ -753,16 +866,17 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       setModal(null);
       setNotice('Saved plan deleted.');
     } catch (cause) {
+      if (epoch !== privateEpoch.current) return;
       handleRequestError(cause, 'The plan could not be deleted.');
     } finally {
-      setPlanBusy(false);
+      if (epoch === privateEpoch.current) setPlanBusy(false);
     }
   }
   function undoDelete() {
     if (!undoPlan) return;
     try {
       const next = [undoPlan, ...demoPlans];
-      persistDemo(preferences, next);
+      persistDemo(undefined, next);
       setDemoPlans(next);
       setPlans(next.map(summarizePlan));
       setUndoPlan(null);
@@ -772,6 +886,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     }
   }
   async function deleteWorkspaceData() {
+    if (sessionEnding.current) return;
     const epoch = privateEpoch.current;
     setPlanBusy(true);
     setError('');
@@ -800,12 +915,61 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       setNotice('Saved preferences and plan history deleted.');
       if (warning) setError(warning);
     } catch (cause) {
+      if (epoch !== privateEpoch.current) return;
       handleRequestError(cause, 'Your saved workspace data could not be deleted.');
     } finally {
-      setPlanBusy(false);
+      if (epoch === privateEpoch.current) setPlanBusy(false);
+    }
+  }
+  function beginSessionEnd() {
+    if (sessionEnding.current) return false;
+    sessionEnding.current = true;
+    privateEpoch.current += 1;
+    requestController.current?.abort();
+    requestController.current = null;
+    setPlansLoading(false);
+    setPlanBusy(false);
+    setSavingPreferences(false);
+    setModal(null);
+    setInspectedPlan(null);
+    setPendingDelete(null);
+    setUndoPlan(null);
+    setMobileNav(false);
+    setError('');
+    setNotice('');
+    return true;
+  }
+  async function signOut() {
+    if (!beginSessionEnd()) return;
+    const epoch = privateEpoch.current;
+    setSigningOut(true);
+    setLoading(false);
+    try {
+      const body = await requestJson<{ signedOut: boolean; warning?: string }>(
+        '/api/auth/signout',
+        {
+          method: 'POST',
+        },
+      );
+      if (epoch !== privateEpoch.current) return;
+      if (body.signedOut !== true)
+        throw new Error('Sign-out could not be confirmed. Please try again.');
+      clearPrivate();
+      sessionChannel.current?.postMessage({ type: 'signed-out' });
+      setNotice('Signed out. Your saved preferences and plans are kept for your next sign-in.');
+      if (body.warning) setError(body.warning);
+    } catch (cause) {
+      if (epoch !== privateEpoch.current) return;
+      handleRequestError(cause, 'Could not sign out. Please try again.');
+      if (gate === 'loading') setGate('error');
+    } finally {
+      sessionEnding.current = false;
+      setSigningOut(false);
     }
   }
   async function disconnect() {
+    if (!beginSessionEnd()) return;
+    const epoch = privateEpoch.current;
     setDisconnecting(true);
     setLoading(true);
     setError('');
@@ -814,7 +978,9 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       const body = await requestJson<{ revoked?: boolean; warning?: string }>('/api/auth/logout', {
         method: 'POST',
       });
+      if (epoch !== privateEpoch.current) return;
       clearPrivate();
+      sessionChannel.current?.postMessage({ type: 'signed-out' });
       if (body.warning) setError(body.warning);
       else if (body.revoked === false)
         setError(
@@ -823,8 +989,10 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       else
         setNotice('Disconnected from SnapTrade. Saved plans are retained for your next sign-in.');
     } catch (cause) {
+      if (epoch !== privateEpoch.current) return;
       handleRequestError(cause, 'Could not disconnect.');
     } finally {
+      sessionEnding.current = false;
       setDisconnecting(false);
       setLoading(false);
     }
@@ -850,7 +1018,14 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
       <a className="skip-link" href="#main">
         Skip to portfolio
       </a>
-      <aside className={`sidebar ${mobileNav ? 'is-open' : ''}`}>
+      <aside
+        ref={sidebarRef}
+        id="workspace-navigation"
+        className={`sidebar ${mobileNav ? 'is-open' : ''}`}
+        role={mobileNav ? 'dialog' : undefined}
+        aria-modal={mobileNav ? true : undefined}
+        aria-label="Workspace navigation"
+      >
         <a className="brand-link" href="/" aria-label="Balance home">
           <Brand />
         </a>
@@ -915,12 +1090,23 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
             <br />
             One thoughtful plan.
           </p>
-          <button onClick={() => setModal('method')}>
+          <button
+            onClick={() => {
+              setMobileNav(false);
+              setModal('method');
+            }}
+          >
             How Balance works <ArrowUpRight size={15} />
           </button>
         </div>
         <div className="sidebar-bottom">
-          <button className="nav-item" onClick={() => setModal('method')}>
+          <button
+            className="nav-item"
+            onClick={() => {
+              setMobileNav(false);
+              setModal('method');
+            }}
+          >
             <CircleHelp size={18} />
             Methodology & help
           </button>
@@ -941,18 +1127,21 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
           onClick={() => setMobileNav(false)}
         />
       )}
-      <div className="main-shell">
+      <div className="main-shell" inert={mobileNav}>
         <header className="topbar">
           <div className="topbar-left">
             <button
               className="icon-button mobile-menu"
+              ref={navigationTrigger}
               aria-label="Open navigation"
+              aria-expanded={mobileNav}
+              aria-controls="workspace-navigation"
               onClick={() => setMobileNav(true)}
             >
               <Menu size={21} />
             </button>
             <span className="breadcrumb">
-              Workspace <ChevronRight size={13} />{' '}
+              <span className="breadcrumb-root">Workspace</span> <ChevronRight size={13} />{' '}
               <strong>
                 {view === 'portfolio'
                   ? 'Portfolio'
@@ -980,12 +1169,28 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
             >
               <CircleHelp size={18} />
             </button>
-            <span
-              className="profile-avatar"
-              aria-label={mode === 'demo' ? 'Sample profile' : 'Your profile'}
-            >
-              {mode === 'demo' ? 'S' : 'ME'}
-            </span>
+            {mode === 'demo' ? (
+              <a className="button secondary session-action" href="/">
+                <LogOut size={14} aria-hidden="true" /> Exit demo
+              </a>
+            ) : gate !== 'signed-out' || status.connected ? (
+              <button
+                className="button secondary session-action"
+                onClick={() => void signOut()}
+                disabled={signingOut || disconnecting}
+              >
+                {signingOut ? (
+                  <LoaderCircle size={14} className="spin" aria-hidden="true" />
+                ) : (
+                  <LogOut size={14} aria-hidden="true" />
+                )}
+                {signingOut ? 'Signing out…' : 'Sign out'}
+              </button>
+            ) : (
+              <a className="button secondary session-action" href="/signin">
+                Sign in <ArrowRight size={14} aria-hidden="true" />
+              </a>
+            )}
           </div>
         </header>
         <main id="main" tabIndex={-1}>
@@ -2202,7 +2407,15 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
                           </small>
                         </strong>
                         <div className="connection-details">
-                          <span>{a.type === 'retirement' ? 'Retirement' : 'Taxable'}</span>
+                          <span>
+                            {a.issues.includes(
+                              'The account tax treatment is unknown. Verify the account type before using a plan.',
+                            )
+                              ? 'Tax treatment unverified'
+                              : a.type === 'retirement'
+                                ? 'Retirement'
+                                : 'Taxable'}
+                          </span>
                           <span>
                             {a.positions.filter((p) => !p.cashEquivalent).length} holdings
                           </span>
@@ -2330,10 +2543,14 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
           </footer>
         </main>
       </div>
-      {loading && (
+      {(loading || signingOut) && (
         <div className="loading-indicator" role="status">
           <LoaderCircle className="spin" size={17} />
-          {disconnecting ? 'Disconnecting from SnapTrade…' : 'Loading your brokerage snapshots…'}
+          {signingOut
+            ? 'Signing out of Balance…'
+            : disconnecting
+              ? 'Disconnecting from SnapTrade…'
+              : 'Loading your brokerage snapshots…'}
         </div>
       )}
       {notice && (

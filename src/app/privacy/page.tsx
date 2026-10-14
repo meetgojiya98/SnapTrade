@@ -114,11 +114,18 @@ export default function PrivacyPage() {
           <section className={styles.section} id="controls">
             <h2>Your controls</h2>
             <p>
+              Sign out in the workspace header ends the current browser session, deletes its
+              server-stored connection credentials, and clears its temporary portfolio cache. If
+              cache cleanup cannot be confirmed, Balance shows a warning; the ended session cannot
+              access that cache. Your saved preferences, plans, and SnapTrade authorization are
+              retained. Other open workspace tabs in the same browser clear their private content.
+            </p>
+            <p>
               In your workspace, you can delete individual saved plans or delete all saved workspace
               data. Deleting workspace data removes saved targets, confirmations, and plans.
-              Disconnecting SnapTrade attempts to revoke the OAuth grant and deletes the local
-              connection credentials; it does not silently delete your saved plans or support
-              conversations. Support has its own deletion controls.
+              Disconnect SnapTrade is a separate action that attempts to revoke the OAuth grant and
+              deletes the local connection credentials; it does not silently delete your saved plans
+              or support conversations. Support has its own deletion controls.
             </p>
             <p>
               If SnapTrade cannot confirm revocation, Balance shows a recovery message directing you

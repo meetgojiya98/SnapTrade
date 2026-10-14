@@ -298,7 +298,14 @@ export function Dialog({
     dialog?.showModal();
     return () => {
       dialog?.close();
-      previous?.focus();
+      if (
+        previous?.isConnected &&
+        !previous.closest('[inert]') &&
+        previous.getClientRects().length &&
+        getComputedStyle(previous).visibility === 'visible'
+      )
+        previous.focus();
+      else document.getElementById('main')?.focus();
     };
   }, []);
   return (

@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Check,
   LockKeyhole,
+  LogOut,
   MessageCircle,
   Plus,
   RefreshCw,
@@ -140,25 +141,33 @@ export default function SupportInbox() {
   const [actionError, setActionError] = useState<SupportFailure | null>(null);
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState<Pending>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [draft, setDraft] = useState(emptyRequestDraft);
   const [replies, setReplies] = useState<Record<string, ReplyDraft>>({});
   const listVersion = useRef(0);
   const detailVersion = useRef(0);
   const identityVersion = useRef(0);
+  // Losing operator access invalidates mutations, but must not cancel a pending sign-out.
+  const sessionVersion = useRef(0);
   const viewerIdentity = useRef<string | null>(null);
   const selected = useRef<string | null>(null);
   const creating = useRef(false);
   const mutation = useRef(false);
+  const sessionEnding = useRef(false);
+  const sessionChannel = useRef<BroadcastChannel | null>(null);
   const mounted = useRef(true);
   const detailHeading = useRef<HTMLHeadingElement>(null);
 
   const unauthorized = useCallback(() => {
     identityVersion.current += 1;
+    sessionVersion.current += 1;
     viewerIdentity.current = null;
     listVersion.current += 1;
     detailVersion.current += 1;
     selected.current = null;
     creating.current = false;
+    mutation.current = false;
+    sessionEnding.current = false;
     setAccess('anonymous');
     setRole('customer');
     setViewerKey(null);
@@ -178,6 +187,8 @@ export default function SupportInbox() {
     setListError(null);
     setDetailError(null);
     setNotice('');
+    setPending(null);
+    setSigningOut(false);
   }, []);
 
   const loadDetail = useCallback(
@@ -232,9 +243,14 @@ export default function SupportInbox() {
         );
         if (identityChanged) {
           identityVersion.current += 1;
+          sessionVersion.current += 1;
           detailVersion.current += 1;
           selected.current = null;
           creating.current = false;
+          mutation.current = false;
+          sessionEnding.current = false;
+          setPending(null);
+          setSigningOut(false);
           setSelectedId(null);
           setThread(null);
           setThreads([]);
@@ -279,6 +295,8 @@ export default function SupportInbox() {
           setAccess((current) => (current === 'connected' ? current : 'failed'));
           if (value.status === 403 && target === 'all') {
             identityVersion.current += 1;
+            mutation.current = false;
+            setPending(null);
             setRole('customer');
             setAccepting(false);
             setScope('mine');
@@ -304,10 +322,32 @@ export default function SupportInbox() {
     return () => {
       mounted.current = false;
       identityVersion.current += 1;
+      sessionVersion.current += 1;
       listVersion.current += 1;
       detailVersion.current += 1;
     };
   }, [loadList]);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel('balance.session');
+    sessionChannel.current = channel;
+    channel.onmessage = (event: MessageEvent<unknown>) => {
+      if (
+        !event.data ||
+        typeof event.data !== 'object' ||
+        !('type' in event.data) ||
+        event.data.type !== 'signed-out'
+      )
+        return;
+      unauthorized();
+      setNotice('You were signed out in another tab. Sign in again to continue.');
+    };
+    return () => {
+      sessionChannel.current = null;
+      channel.close();
+    };
+  }, [unauthorized]);
 
   const hasDraft = Boolean(
     draft.title.trim() ||
@@ -406,7 +446,7 @@ export default function SupportInbox() {
     kind: Exclude<Pending, null>,
     work: (isCurrent: () => boolean) => Promise<void>,
   ) => {
-    if (mutation.current) return;
+    if (mutation.current || sessionEnding.current) return;
     const version = identityVersion.current;
     const isCurrent = () => mounted.current && version === identityVersion.current;
     mutation.current = true;
@@ -421,8 +461,40 @@ export default function SupportInbox() {
       if (value.status === 401) unauthorized();
       else setActionError(value);
     } finally {
-      mutation.current = false;
-      if (mounted.current) setPending(null);
+      if (isCurrent()) {
+        mutation.current = false;
+        setPending(null);
+      }
+    }
+  };
+
+  const signOut = async () => {
+    if (sessionEnding.current) return;
+    const version = sessionVersion.current;
+    const isCurrent = () => mounted.current && version === sessionVersion.current;
+    sessionEnding.current = true;
+    setSigningOut(true);
+    setActionError(null);
+    setNotice('');
+    try {
+      const result = await request<{ signedOut?: boolean; warning?: string }>(
+        '/api/auth/signout',
+        'POST',
+      );
+      if (!isCurrent()) return;
+      if (result.signedOut !== true)
+        throw new SupportFailure('Sign-out could not be confirmed. Please try again.');
+      unauthorized();
+      setNotice('Signed out. Your support conversations are kept for your next sign-in.');
+      if (typeof result.warning === 'string') setActionError(new SupportFailure(result.warning));
+      sessionChannel.current?.postMessage({ type: 'signed-out' });
+    } catch (error) {
+      if (isCurrent()) setActionError(failure(error));
+    } finally {
+      if (isCurrent()) {
+        sessionEnding.current = false;
+        setSigningOut(false);
+      }
     }
   };
 
@@ -540,7 +612,7 @@ export default function SupportInbox() {
     });
   };
 
-  const busy = pending !== null || listLoading || detailLoading;
+  const busy = pending !== null || listLoading || detailLoading || signingOut;
   const reply = thread ? (replies[thread.id] ?? { message: '', clientRequestId: null }) : null;
   const operatorView = scope === 'all' && role === 'operator';
 
@@ -560,6 +632,12 @@ export default function SupportInbox() {
         </p>
       </div>
 
+      {notice ? (
+        <div className={styles.success} role="status">
+          {notice}
+        </div>
+      ) : null}
+      {actionError ? <ErrorNotice error={actionError} /> : null}
       {access === 'loading' ? (
         <div className={styles.loading} role="status">
           <div className={styles.loadingBar} aria-hidden="true" />
@@ -578,7 +656,14 @@ export default function SupportInbox() {
             <Link href="/app" className={styles.primary}>
               Open workspace to sign in <ArrowRight size={15} aria-hidden="true" />
             </Link>
-            <button className={styles.secondary} onClick={() => void loadList('mine')}>
+            <button
+              className={styles.secondary}
+              onClick={() => {
+                setNotice('');
+                setActionError(null);
+                void loadList('mine');
+              }}
+            >
               I signed in, try again
             </button>
           </div>
@@ -646,6 +731,14 @@ export default function SupportInbox() {
                   New request
                 </button>
               ) : null}
+              <button
+                className={styles.secondary}
+                disabled={signingOut}
+                onClick={() => void signOut()}
+              >
+                <LogOut size={14} aria-hidden="true" />
+                {signingOut ? 'Signing out…' : 'Sign out'}
+              </button>
             </div>
           </div>
           {!accepting ? (
@@ -656,20 +749,14 @@ export default function SupportInbox() {
               non-sensitive product reports.
             </div>
           ) : null}
-          {notice ? (
-            <div className={styles.success} role="status">
-              {notice}
-            </div>
-          ) : null}
           {listError ? (
             <ErrorNotice
               error={listError}
               retry={() => void loadList(scope)}
               retryLabel="Retry request list"
-              disabled={listLoading || pending !== null}
+              disabled={listLoading || pending !== null || signingOut}
             />
           ) : null}
-          {actionError ? <ErrorNotice error={actionError} /> : null}
           <div className={styles.layout}>
             <aside
               className={styles.list}
@@ -690,7 +777,7 @@ export default function SupportInbox() {
                     <button
                       key={item.id}
                       className={styles.request}
-                      disabled={pending !== null}
+                      disabled={pending !== null || signingOut}
                       aria-pressed={selectedId === item.id && !showNew}
                       onClick={() => viewThread(item.id)}
                     >

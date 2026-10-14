@@ -237,8 +237,15 @@ export default function GuidePage() {
             </p>
             <p>
               Your connected preferences and up to 30 plans follow your verified SnapTrade identity.
-              The demo keeps up to 25 sample plans only in this browser. In Connections, you can
-              delete saved workspace data or disconnect SnapTrade; these are separate controls.{' '}
+              The demo keeps up to 25 sample plans only in this browser.
+            </p>
+            <p>
+              Choose Sign out in the workspace header to end this browser session and remove its
+              server-stored credentials and temporary portfolio cache. Your saved preferences,
+              plans, and SnapTrade authorization are kept. Other open workspace tabs in the same
+              browser clear their private content. In Connections, Delete workspace data removes
+              your saved preferences and plans; Disconnect SnapTrade separately attempts to revoke
+              the SnapTrade authorization.{' '}
               <Link href="/privacy">Read how your data is handled.</Link>
             </p>
           </section>

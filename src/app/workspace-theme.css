@@ -283,6 +283,14 @@
 .app-shell .topbar-right {
   gap: 14px;
 }
+.app-shell .session-action {
+  min-height: 36px;
+  padding: 8px 11px;
+  gap: 7px;
+  font-size: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .app-shell .mode-badge {
   padding: 7px 10px;
   border: 1px solid #dce5d1;
@@ -1347,6 +1355,16 @@
   }
 }
 @media (max-width: 520px) {
+  .app-shell .breadcrumb-root,
+  .app-shell .breadcrumb > svg {
+    display: none;
+  }
+  .app-shell .session-action {
+    min-height: 36px;
+    padding: 8px;
+    font-size: 9px;
+    gap: 5px;
+  }
   .app-shell .topbar {
     padding-inline: 18px;
     height: 62px;
