@@ -216,6 +216,94 @@ describe('SnapTrade OAuth integration', () => {
     expect(refreshes).toBe(1);
     expect(await store.readSession(id)).toBeNull();
   });
+
+  it('does not revoke a newer healthy session when an older retried token returns a delayed 401', async () => {
+    let refreshes = 0;
+    let apiCalls = 0;
+    let waiting!: () => void;
+    const oldRetryStarted = new Promise<void>((resolve) => {
+      waiting = resolve;
+    });
+    let rejectOldRetry!: (response: Response) => void;
+    const delayedUnauthorized = new Promise<Response>((resolve) => {
+      rejectOldRetry = resolve;
+    });
+    const { service, store } = harness(async (url, init) => {
+      if (url === metadata.token_endpoint) {
+        const expectedRefresh = refreshes === 0 ? 'refresh-first' : 'refresh-rotation-1';
+        expect(new URLSearchParams(String(init?.body)).get('refresh_token')).toBe(expectedRefresh);
+        refreshes++;
+        return json({
+          ...token,
+          access_token: `access-rotation-${refreshes}`,
+          refresh_token: `refresh-rotation-${refreshes}`,
+        });
+      }
+      const authorization = new Headers(init?.headers).get('authorization');
+      apiCalls++;
+      if (url.endsWith('/accounts/all') && authorization === 'Bearer access-rotation-1') {
+        waiting();
+        return delayedUnauthorized;
+      }
+      if (url.endsWith('/authorizations') && authorization === 'Bearer access-rotation-2')
+        return json({ healthy: true });
+      return json({}, 401);
+    });
+    const id = randomSecret();
+    await store.createSession(id, stored);
+    const older = service.api(id, '/accounts/all');
+    await oldRetryStarted;
+    expect(await service.api(id, '/authorizations')).toEqual({ healthy: true });
+    expect((await store.readSession(id))?.accessToken).toBe('access-rotation-2');
+    rejectOldRetry(json({}, 401));
+    await expect(older).rejects.toMatchObject({ code: 'upstream_unavailable', status: 502 });
+    expect((await store.readSession(id))?.accessToken).toBe('access-rotation-2');
+    expect(refreshes).toBe(2);
+    expect(apiCalls).toBe(4);
+  });
+
+  it('does not restore a session disconnected while a retried API request is pending', async () => {
+    let refreshes = 0;
+    let apiCalls = 0;
+    let revocations = 0;
+    let waiting!: () => void;
+    const retryStarted = new Promise<void>((resolve) => {
+      waiting = resolve;
+    });
+    let rejectRetry!: (response: Response) => void;
+    const delayedUnauthorized = new Promise<Response>((resolve) => {
+      rejectRetry = resolve;
+    });
+    const { service, store } = harness(async (url, init) => {
+      if (url === metadata.token_endpoint) {
+        refreshes++;
+        return json({ ...token, access_token: 'access-rotated', refresh_token: 'refresh-rotated' });
+      }
+      if (url === metadata.revocation_endpoint) {
+        revocations++;
+        expect(new URLSearchParams(String(init?.body)).get('token')).toBe('refresh-rotated');
+        return json({});
+      }
+      apiCalls++;
+      if (new Headers(init?.headers).get('authorization') === 'Bearer access-rotated') {
+        waiting();
+        return delayedUnauthorized;
+      }
+      return json({}, 401);
+    });
+    const id = randomSecret();
+    await store.createSession(id, stored);
+    const pending = service.api(id, '/accounts/all');
+    await retryStarted;
+    expect(await service.disconnect(id)).toEqual({ revoked: true });
+    expect(await store.readSession(id)).toBeNull();
+    rejectRetry(json({}, 401));
+    await expect(pending).rejects.toMatchObject({ code: 'reconnect_required', status: 401 });
+    expect(await store.readSession(id)).toBeNull();
+    expect(refreshes).toBe(1);
+    expect(apiCalls).toBe(2);
+    expect(revocations).toBe(1);
+  });
   it('does not retry a 429 or destroy a usable refresh token', async () => {
     const { service, store, fetcher } = harness(async () => json({}, 429, { 'Retry-After': '60' }));
     const id = randomSecret();

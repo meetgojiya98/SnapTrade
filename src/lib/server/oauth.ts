@@ -277,8 +277,12 @@ export class OAuthService {
         return await call(refreshedToken);
       } catch (retryError) {
         if (retryError instanceof UpstreamError && retryError.upstreamStatus === 401) {
-          await this.store.deleteSession(id);
-          throw reconnectError();
+          // A late rejection must not revoke credentials another request has already rotated.
+          const invalidated = await this.store.withSession(id, async (current) => {
+            const failedCurrentToken = !current || current.accessToken === refreshedToken;
+            return { session: failedCurrentToken ? null : current, value: failedCurrentToken };
+          });
+          if (invalidated) throw reconnectError();
         }
         throw retryError;
       }

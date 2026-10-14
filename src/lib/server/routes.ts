@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerConfig } from './config';
 import { safeError } from './errors';
 import { validSecret } from './crypto';
+import { failureReference } from './diagnostics';
 
 export const PRIVATE_HEADERS = {
   'Cache-Control': 'no-store, max-age=0',
@@ -40,12 +41,14 @@ export function setPrivateCookie(
 
 export function errorResponse(error: unknown): NextResponse {
   const safe = safeError(error);
+  const requestId = failureReference(error);
   return NextResponse.json(
-    { error: safe.message, code: safe.code },
+    { error: safe.message, code: safe.code, requestId },
     {
       status: safe.status,
       headers: {
         ...PRIVATE_HEADERS,
+        'X-Request-Id': requestId,
         ...(safe.retryAfter ? { 'Retry-After': safe.retryAfter } : {}),
       },
     },

@@ -32,9 +32,13 @@ test('portfolio rejects anonymous data access without returning account data', a
   expect([401, 503]).toContain(response.status());
   expect(response.headers()['cache-control']).toContain('no-store');
   const body = await response.json();
-  expect(Object.keys(body).sort()).toEqual(['code', 'error']);
+  expect(Object.keys(body).sort()).toEqual(['code', 'error', 'requestId']);
   expect(['configuration', 'reconnect_required']).toContain(body.code);
   expect(typeof body.error).toBe('string');
+  expect(body.requestId).toMatch(
+    /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i,
+  );
+  expect(response.headers()['x-request-id']).toBe(body.requestId);
   expect(body).not.toHaveProperty('accounts');
   expect(body).not.toHaveProperty('access_token');
   expect(body).not.toHaveProperty('refresh_token');
@@ -68,8 +72,10 @@ test('workspace and plan APIs reject anonymous requests without exposing user re
     expect([401, 503]).toContain(response.status());
     expect(response.headers()['cache-control']).toContain('no-store');
     const body = await response.json();
-    expect(Object.keys(body).sort()).toEqual(['code', 'error']);
+    expect(Object.keys(body).sort()).toEqual(['code', 'error', 'requestId']);
     expect(['configuration', 'reconnect_required']).toContain(body.code);
+    expect(body.requestId).toMatch(/^[a-f0-9-]{36}$/i);
+    expect(response.headers()['x-request-id']).toBe(body.requestId);
     expect(body).not.toHaveProperty('preferences');
     expect(body).not.toHaveProperty('plans');
     expect(body).not.toHaveProperty('source');
