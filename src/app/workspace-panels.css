@@ -1,0 +1,2380 @@
+/* Workspace surfaces share the landing page's evergreen and electric-lime palette. */
+.app-shell .rebalance-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 310px);
+  gap: 22px;
+  align-items: start;
+}
+
+.app-shell .rebalance-main {
+  gap: 20px;
+  min-width: 0;
+}
+
+.app-shell .step-label {
+  color: #5a6c60;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.25px;
+  margin-bottom: 9px;
+}
+
+.app-shell .target-card .section-heading,
+.app-shell .constraints-card .section-heading,
+.app-shell .plan-trades .section-heading,
+.app-shell .cash-proof .section-heading {
+  align-items: flex-start;
+  padding: 24px 25px 18px;
+}
+
+.app-shell .target-bar {
+  height: 14px;
+  gap: 4px;
+  margin: 4px 25px 20px;
+  border-radius: 7px;
+}
+
+.app-shell .target-bar span {
+  border-radius: 4px;
+}
+
+.app-shell .target-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 25px;
+}
+
+.app-shell .target-values > div {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 13px 12px;
+  border: 1px solid #e4e9e0;
+  border-radius: 10px;
+  background: #f8faf6;
+  color: #425a4c;
+  font-size: 11px;
+  white-space: normal;
+}
+
+.app-shell .target-values strong {
+  color: #172b23;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.7px;
+}
+
+.app-shell .inline-note {
+  color: #59675f;
+  font-size: 11px;
+  line-height: 1.75;
+  padding: 18px 25px 21px;
+}
+
+.app-shell .muted-icon {
+  color: #5b7564;
+  flex-shrink: 0;
+}
+
+.app-shell .form-grid {
+  gap: 20px 18px;
+  padding: 7px 25px 24px;
+}
+
+.app-shell .field-label {
+  color: #263e31;
+  gap: 9px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-shell .field-label small {
+  color: #647269;
+  font-size: 11px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+.app-shell .money-input,
+.app-shell .field-label select {
+  min-height: 46px;
+  background: #f8faf6;
+  border: 1px solid #dce4d7;
+  border-radius: 10px;
+  padding: 11px 13px;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.app-shell .money-input > span {
+  color: #617167;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+}
+
+.app-shell .money-input input {
+  color: #172b23;
+  font-family: Manrope, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell .field-label select {
+  color: #263e31;
+  font-size: 12px;
+}
+
+.app-shell .money-input:focus-within {
+  border-color: #214c38;
+  outline: 2px solid #214c38;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px #d5f47942;
+}
+
+.app-shell .toggle-row {
+  padding: 19px 25px;
+  border-color: #e4e9e0;
+  gap: 18px;
+}
+
+.app-shell .toggle-row strong {
+  color: #263e31;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-shell .toggle-row > div > span {
+  color: #647269;
+  font-size: 11px;
+}
+
+.app-shell .switch {
+  flex: 0 0 40px;
+  height: 24px;
+  width: 40px;
+  background: #cdd6c8;
+}
+
+.app-shell .switch::after {
+  height: 18px;
+  width: 18px;
+}
+
+.app-shell .toggle-row input {
+  width: 40px;
+  height: 28px;
+}
+
+.app-shell .toggle-row input:checked + .switch {
+  background: #214c38;
+}
+
+.app-shell .toggle-row input:checked + .switch::after {
+  transform: translateX(16px);
+  background: #d5f479;
+}
+
+.app-shell .toggle-row input:focus-visible + .switch {
+  outline-color: #214c38;
+}
+
+.app-shell .constraint-pills {
+  gap: 10px 17px;
+  padding: 15px 25px;
+  background: #f5f8f1;
+  border-color: #e4e9e0;
+}
+
+.app-shell .constraint-pills span {
+  color: #47604f;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.app-shell .constraint-pills svg {
+  color: #214c38;
+}
+
+.app-shell .plan-header-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.app-shell .plan-trades .section-heading {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.app-shell .trade-sequence {
+  background: #f4f7ef;
+  border-color: #e2e8dc;
+  padding: 13px 25px;
+  color: #4f6658;
+  gap: 9px;
+  font-size: 10px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+
+.app-shell .trade-row {
+  padding: 21px 25px;
+  border-color: #e8ede4;
+  gap: 13px;
+}
+
+.app-shell .trade-side,
+.dialog .trade-side {
+  width: 35px;
+  height: 35px;
+  border-radius: 10px;
+  color: #214c38;
+  background: #eaf4dd;
+}
+
+.app-shell .trade-side.sell,
+.dialog .trade-side.sell {
+  background: #fbefdf;
+  color: #885026;
+}
+
+.app-shell .trade-detail {
+  min-width: 0;
+}
+
+.app-shell .trade-detail > strong {
+  color: #172b23;
+  font-family: Manrope, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.app-shell .trade-detail > strong > span {
+  color: #566b5e;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.app-shell .trade-detail > span,
+.app-shell .trade-detail > p,
+.app-shell .trade-value > span {
+  color: #617168;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.app-shell .trade-detail > p {
+  max-width: 430px;
+  line-height: 1.75;
+}
+
+.app-shell .trade-value {
+  flex-shrink: 0;
+}
+
+.app-shell .trade-value > strong {
+  color: #172b23;
+  font-family: Manrope, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.app-shell .plan-sidebar {
+  top: 24px;
+  min-width: 0;
+}
+
+.app-shell .plan-summary {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #214c38;
+  border-radius: 18px;
+  padding: 26px;
+  color: #f8fbf3;
+  background: radial-gradient(ellipse at 100% 0%, #47674b 0, transparent 55%), #18392c;
+  box-shadow: 0 12px 25px #18392c0d;
+}
+
+.app-shell .plan-summary > .eyebrow {
+  color: #d5f479;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+}
+
+.app-shell .plan-summary h2 {
+  color: #f8fbf3;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.28;
+  letter-spacing: -1.1px;
+  margin-top: 17px;
+}
+
+.app-shell .drift-comparison {
+  margin-top: 30px;
+  color: #a7bca8;
+  gap: 12px;
+}
+
+.app-shell .drift-comparison > div > span {
+  color: #c2d0bf;
+  font-size: 10px;
+  margin-bottom: 9px;
+}
+
+.app-shell .drift-comparison strong {
+  color: #f4f8eb;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -1.5px;
+}
+
+.app-shell .drift-comparison > div:last-child strong {
+  color: #d5f479;
+}
+
+.app-shell .drift-comparison strong small {
+  color: #c2d0bf;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.app-shell .improvement {
+  gap: 7px;
+  margin-top: 18px;
+  padding: 10px 11px;
+  border: 1px solid #d5f47930;
+  border-radius: 8px;
+  background: #d5f47913;
+  color: #dcf69d;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.app-shell .plan-numbers {
+  border-color: #ffffff20;
+  margin-top: 25px;
+  padding-top: 21px;
+  gap: 15px;
+}
+
+.app-shell .plan-numbers > div {
+  color: #c2d0bf;
+  font-size: 11px;
+  gap: 12px;
+}
+
+.app-shell .plan-numbers dd {
+  color: #f2f6e9;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.app-shell .plan-numbers .total {
+  color: #f2f6e9;
+  border-color: #ffffff20;
+  margin-top: 3px;
+  padding-top: 18px;
+}
+
+.app-shell .plan-numbers .total dd {
+  color: #d5f479;
+  font-family: Manrope, sans-serif;
+  font-size: 16px;
+  letter-spacing: -0.4px;
+}
+
+.app-shell .summary-note {
+  color: #c2d0bf;
+  font-size: 10px;
+  line-height: 1.75;
+  margin-top: 23px;
+}
+
+.app-shell .summary-note svg {
+  flex-shrink: 0;
+  color: #d5f479;
+  margin-top: 2px;
+}
+
+.app-shell .plan-caveats {
+  padding: 24px 10px;
+}
+
+.app-shell .plan-caveats > div,
+.app-shell .plan-caveats h3 {
+  color: #304a39;
+}
+
+.app-shell .plan-caveats h3 {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-shell .plan-caveats p {
+  color: #59675f;
+  font-size: 11px;
+  line-height: 1.85;
+}
+
+.app-shell .plan-caveats .text-button {
+  color: #214c38;
+  font-weight: 600;
+}
+
+.app-shell .plan-warning {
+  border-color: #dee5da;
+  color: #80572c;
+}
+
+.app-shell .plan-caveats .plan-warning {
+  color: #80572c;
+}
+
+.app-shell .plan-summary .plan-warning {
+  border-color: #ffffff20;
+  color: #ffdaab;
+  font-size: 11px;
+  line-height: 1.7;
+  margin-top: 18px;
+}
+
+.app-shell .cash-proof {
+  border-color: #d5e2c9;
+}
+
+.app-shell .cash-proof table,
+.dialog .cash-proof table {
+  min-width: 540px;
+}
+
+.app-shell .cash-proof th,
+.dialog .cash-proof th {
+  color: #56675b;
+  font-size: 9px;
+  letter-spacing: 0.65px;
+  background: #f4f7ef;
+  border-color: #e5ebdf;
+  padding: 13px;
+}
+
+.app-shell .cash-proof td,
+.dialog .cash-proof td {
+  color: #42564a;
+  border-color: #e8ede4;
+  font-size: 11px;
+  padding: 15px 13px;
+}
+
+.app-shell .cash-proof td > strong,
+.dialog .cash-proof td > strong {
+  color: #263e31;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.app-shell .cash-proof td:last-child,
+.dialog .cash-proof td:last-child {
+  color: #214c38;
+  font-weight: 700;
+  background: #f7faf2;
+}
+
+.app-shell .cash-proof .inline-note {
+  font-size: 10px;
+  border-color: #e5ebdf;
+  padding-top: 15px;
+  padding-bottom: 15px;
+}
+
+.app-shell .connection-intro {
+  padding: 30px;
+  gap: 23px;
+  border-color: #d8e5cc;
+  border-radius: 18px;
+  background: linear-gradient(110deg, #eef5e4, #f7faf2);
+  margin-bottom: 27px;
+}
+
+.app-shell .connection-intro-icon {
+  width: 62px;
+  height: 62px;
+  border-radius: 18px;
+  color: #214c38;
+  border-color: #c7dcaf;
+  background: #d5f479;
+}
+
+.app-shell .connection-intro h2 {
+  color: #172b23;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.9px;
+}
+
+.app-shell .connection-intro p {
+  color: #59675f;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.app-shell .connection-intro .eyebrow {
+  color: #3f6049;
+  font-weight: 700;
+}
+
+.app-shell .connection-intro > .button {
+  flex-shrink: 0;
+}
+
+.app-shell .connection-grid {
+  gap: 18px;
+}
+
+.app-shell .connection-card {
+  min-width: 0;
+  padding: 24px;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.app-shell .connection-card:hover {
+  border-color: #b9cbb0;
+  box-shadow: 0 7px 24px #214c3806;
+}
+
+.app-shell .connection-card-top {
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.app-shell .connection-tag {
+  border-color: #d4e5cc;
+  border-radius: 20px;
+  background: #f1f7e9;
+  color: #406246;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 5px 8px;
+}
+
+.app-shell .connection-tag > span {
+  background: #527740;
+}
+
+.app-shell .connection-tag.issue {
+  color: #805321;
+  background: #fff4e3;
+  border-color: #ebd4b0;
+}
+
+.app-shell .connection-tag.issue > span {
+  background: #b57425;
+}
+
+.app-shell .connection-card h3 {
+  color: #172b23;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+
+.app-shell .connection-card > p,
+.app-shell .connection-card > p > span {
+  color: #617168;
+  overflow-wrap: anywhere;
+}
+
+.app-shell .connection-value {
+  margin-top: 25px;
+  color: #172b23;
+  font-size: 29px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  overflow-wrap: anywhere;
+}
+
+.app-shell .connection-value small {
+  color: #617168;
+  font-size: 10px;
+}
+
+.app-shell .connection-details {
+  flex-wrap: wrap;
+}
+
+.app-shell .connection-details > span {
+  color: #52675a;
+  background: #f4f7f0;
+  border-color: #e1e8db;
+  border-radius: 6px;
+  font-size: 10px;
+  padding: 5px 7px;
+}
+
+.app-shell .connection-freshness {
+  color: #50685a;
+  border-color: #e4eadd;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.app-shell .connection-freshness .status-dot {
+  flex-shrink: 0;
+}
+
+.app-shell .connection-card .account-issue {
+  color: #805321;
+  border-left: 2px solid #d6a663;
+  padding-left: 10px;
+  margin-top: 12px;
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.app-shell .connection-bottom {
+  gap: 20px;
+  padding: 24px 3px;
+}
+
+.app-shell .connection-bottom > div {
+  color: #4b6854;
+}
+
+.app-shell .connection-bottom h3 {
+  color: #304a39;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-shell .connection-bottom p,
+.app-shell .connection-data-card p {
+  color: #617168;
+  font-size: 11px;
+}
+
+.app-shell .connection-data-card {
+  margin-top: 6px;
+  padding: 24px;
+  background: #f5f8f1;
+  border-color: #dce5d6;
+}
+
+.app-shell .connection-data-card h3 {
+  color: #263e31;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.app-shell .text-button.danger {
+  color: #934b35;
+}
+
+.app-shell .account-recovery {
+  border-color: #e0e7d9;
+  margin-top: 17px;
+  padding-top: 16px;
+}
+
+.app-shell .account-recovery > strong {
+  color: #304a39;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-shell .connection-card .account-recovery > p {
+  color: #59675f;
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.app-shell .account-recovery .text-button {
+  line-height: 1.6;
+  font-size: 11px;
+  padding: 3px 0;
+}
+
+.app-shell .planning-recovery {
+  padding: 6px 25px 24px;
+  border-color: #e4e9df;
+}
+
+.app-shell .planning-recovery > h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #263e31;
+}
+
+.app-shell .recovery-grid {
+  gap: 12px;
+}
+
+.app-shell .recovery-grid article {
+  padding: 18px;
+  border-color: #dfe8d7;
+  background: #f7faf2;
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.app-shell .recovery-grid article > svg {
+  color: #426b4a;
+}
+
+.app-shell .recovery-grid h4 {
+  color: #263e31;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-shell .recovery-grid p {
+  color: #59675f;
+  font-size: 11px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.app-shell .recovery-grid .text-button {
+  flex-wrap: wrap;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.app-shell .blocker-list {
+  gap: 12px;
+  padding: 22px 25px;
+}
+
+.app-shell .blocker-list > div {
+  color: #785023;
+  background: #fff6e8;
+  border-color: #edd9b7;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.app-shell .blocker-list svg {
+  color: #a27032;
+  flex-shrink: 0;
+}
+
+.app-shell .blocker-list > .blocker-actions {
+  border: 0;
+  border-top: 1px solid #e4e9df;
+  border-radius: 0;
+  background: transparent;
+  padding: 18px 0 0;
+}
+
+.app-shell .workspace-onboarding {
+  border-color: #d3e2c4;
+  background: linear-gradient(115deg, #f0f6e6, #f9fbf5 70%);
+  border-radius: 16px;
+  padding: 20px 23px 17px;
+  margin-bottom: 24px;
+}
+
+.app-shell .onboarding-title {
+  gap: 12px;
+}
+
+.app-shell .onboarding-icon {
+  width: 38px;
+  height: 38px;
+  border: 1px solid #cadfaf;
+  border-radius: 11px;
+  background: #d5f479;
+  color: #214c38;
+  flex-shrink: 0;
+}
+
+.app-shell .onboarding-title h2 {
+  font-size: 17px;
+  color: #172b23;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+}
+
+.app-shell .onboarding-title p {
+  color: #59675f;
+  font-size: 11px;
+  line-height: 1.6;
+  margin-top: 3px;
+}
+
+.app-shell .onboarding-progress {
+  color: #3b5941;
+  border: 1px solid #d5e1ca;
+  background: #f8fbf1;
+  border-radius: 20px;
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.app-shell .onboarding-steps {
+  margin-top: 15px;
+  gap: 10px;
+}
+
+.app-shell .onboarding-steps > button {
+  padding: 11px 12px;
+  border-color: #dfe7d6;
+  border-radius: 10px;
+  gap: 10px;
+  background: #ffffffb3;
+  min-width: 0;
+}
+
+.app-shell .onboarding-steps > button:hover {
+  border-color: #b4cd9d;
+  background: #fff;
+}
+
+.app-shell .onboarding-steps > button > span,
+.app-shell .onboarding-steps > button > svg:first-child {
+  width: 24px;
+  height: 24px;
+  color: #214c38;
+  background: #e7f0da;
+  font-weight: 700;
+}
+
+.app-shell .onboarding-steps > button > div {
+  min-width: 0;
+}
+
+.app-shell .onboarding-steps strong {
+  color: #263e31;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.app-shell .onboarding-steps small {
+  color: #59675f;
+  font-size: 10px;
+  line-height: 1.5;
+  margin-top: 3px;
+}
+
+.app-shell .onboarding-steps > button > svg:last-child {
+  color: #58734c;
+  flex-shrink: 0;
+}
+
+.app-shell .onboarding-bottom {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-color: #dce5d1;
+  gap: 18px;
+}
+
+.app-shell .onboarding-bottom p {
+  color: #59675f;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.app-shell .onboarding-bottom .button {
+  flex-shrink: 0;
+  min-height: 34px;
+  font-size: 10px;
+  padding: 8px 12px;
+}
+
+.app-shell .preference-status {
+  color: #506458;
+  font-size: 11px;
+}
+
+.app-shell .preference-status.has-changes {
+  border-color: #d8e4c9;
+  background: #f0f6e6;
+  border-radius: 10px;
+  padding: 12px 15px;
+}
+
+.app-shell .banner {
+  background: #eff5e9;
+  border-color: #d9e5cc;
+  border-radius: 11px;
+  color: #425d46;
+  font-size: 11px;
+  line-height: 1.7;
+  padding: 13px 15px;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.app-shell .banner > svg {
+  flex-shrink: 0;
+}
+
+.app-shell .banner > span {
+  min-width: 0;
+}
+
+.app-shell .banner button,
+.app-shell .banner > a {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.app-shell .warning-banner {
+  background: #fff7e8;
+  border-color: #ead7b3;
+  color: #785023;
+}
+
+.app-shell .error-banner {
+  background: #fff1ec;
+  border-color: #eac9bc;
+  color: #8a422c;
+}
+
+.app-shell .scenario-banner {
+  background: #f0f5e8;
+  border-color: #d9e4cc;
+  color: #425d46;
+}
+
+.app-shell .empty-state {
+  color: #5f7c56;
+  gap: 12px;
+  padding: 48px 28px;
+}
+
+.app-shell .empty-state > svg {
+  box-sizing: content-box;
+  padding: 15px;
+  border: 1px solid #dbe5d3;
+  background: #f2f7eb;
+  border-radius: 18px;
+  color: #426b4a;
+}
+
+.app-shell .empty-state h3 {
+  color: #263e31;
+  font-family: Manrope, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.app-shell .empty-state p {
+  color: #617168;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.app-shell .saved-plans-card > .section-heading {
+  padding: 26px;
+}
+
+.app-shell .saved-empty {
+  padding: 75px 25px;
+}
+
+.app-shell .saved-plan-row {
+  padding: 24px 26px;
+  gap: 19px;
+  border-color: #e4e9df;
+  transition: background 150ms ease;
+}
+
+.app-shell .saved-plan-row:hover {
+  background: #fafcf7;
+}
+
+.app-shell .saved-plan-icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 49px;
+  color: #214c38;
+  border-color: #d9e5cc;
+  background: #f0f6e6;
+  border-radius: 12px;
+}
+
+.app-shell .saved-plan-description h3 {
+  color: #172b23;
+  font-family: Manrope, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+
+.app-shell .saved-plan-description p {
+  color: #617168;
+  font-size: 11px;
+}
+
+.app-shell .historical-badge {
+  background: #f1f4ec;
+  border: 1px solid #e2e7dd;
+  border-radius: 5px;
+  color: #56675b;
+  padding: 4px 7px;
+  font-size: 9px;
+}
+
+.app-shell .saved-plan-drift {
+  padding: 0 18px;
+}
+
+.app-shell .saved-plan-drift > span,
+.app-shell .saved-plan-drift small {
+  color: #617168;
+  font-size: 10px;
+}
+
+.app-shell .saved-plan-drift strong {
+  color: #214c38;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.7px;
+  white-space: nowrap;
+}
+
+.app-shell .saved-plan-actions {
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.app-shell .saved-plan-actions > .icon-button {
+  color: #7a6156;
+  border-radius: 9px;
+}
+
+.app-shell .saved-plan-actions > .icon-button:hover {
+  background: #fff0e9;
+  color: #934b35;
+}
+
+.app-shell .saved-plans-card > .card-footnote {
+  padding: 17px 26px;
+  background: #f7f9f3;
+  color: #617168;
+  border-color: #e4e9df;
+  font-size: 10px;
+}
+
+.app-shell .workspace-loading {
+  padding-top: 22px;
+}
+
+.app-shell .skeleton {
+  border: 1px solid #e2e9db;
+  border-radius: 17px;
+  background-image: linear-gradient(105deg, #e7eddf 15%, #f6f8f2 43%, #e7eddf 70%);
+}
+
+.app-shell .workspace-loading > p {
+  color: #59675f;
+  font-size: 12px;
+}
+
+.app-shell .workspace-gate {
+  max-width: 780px;
+  margin: 30px auto 65px;
+  padding: 44px;
+  gap: 21px;
+  background: radial-gradient(ellipse at 50% 0%, #f0f7e5, transparent 60%), #fff;
+  border-color: #d9e3d1;
+  border-radius: 22px;
+}
+
+.app-shell .gate-icon {
+  width: 69px;
+  height: 69px;
+  border: 1px solid #c9dea9;
+  border-radius: 21px;
+  color: #214c38;
+  background: #d5f479;
+}
+
+.app-shell .workspace-gate > .eyebrow {
+  color: #456343;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.7px;
+}
+
+.app-shell .workspace-gate h1 {
+  color: #172b23;
+  font-size: clamp(28px, 3.2vw, 42px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -1.6px;
+}
+
+.app-shell .workspace-gate > p {
+  color: #59675f;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.app-shell .gate-security {
+  color: #59675f;
+  border-color: #dee7d5;
+  font-size: 11px;
+  line-height: 1.75;
+  padding-top: 21px;
+}
+
+.app-shell .gate-security svg {
+  color: #214c38;
+  flex-shrink: 0;
+}
+
+.app-shell .gate-service-note {
+  background: #f5f8ef;
+  border: 1px solid #dde7d1;
+  border-radius: 12px;
+  padding: 19px;
+  color: #304a39;
+  font-size: 12px;
+}
+
+.app-shell .gate-service-note p,
+.app-shell .gate-sync-note {
+  color: #59675f;
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.app-shell .connection-checklist,
+.dialog .connection-checklist {
+  border: 1px solid #dfe7d6;
+  border-radius: 12px;
+  background: #f7faf2;
+  padding: 20px;
+}
+
+.app-shell .connection-checklist ol,
+.dialog .connection-checklist ol {
+  gap: 17px;
+}
+
+.app-shell .connection-checklist li > span,
+.dialog .connection-checklist li > span {
+  color: #214c38;
+  background: #e3eecf;
+  font-weight: 700;
+}
+
+.app-shell .connection-checklist strong,
+.dialog .connection-checklist strong {
+  color: #263e31;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-shell .connection-checklist li p,
+.dialog .connection-checklist li p {
+  color: #59675f;
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.app-shell .connection-checklist a,
+.dialog .connection-checklist a {
+  color: #214c38;
+}
+
+.app-shell .connection-checklist .connected-beta-note,
+.dialog .connection-checklist .connected-beta-note {
+  color: #59675f;
+  border-color: #dce6d1;
+  font-size: 10px;
+  line-height: 1.8;
+}
+
+.app-shell .connected-beta-note strong,
+.dialog .connected-beta-note strong {
+  font-size: inherit;
+}
+
+.app-shell .workspace-help-links,
+.dialog .workspace-help-links {
+  gap: 10px 19px;
+  font-size: 11px;
+}
+
+.app-shell .main-shell .workspace-help-links a,
+.dialog .workspace-help-links a {
+  color: #214c38;
+  line-height: 1.6;
+  text-underline-offset: 4px;
+}
+
+.app-shell > .loading-indicator,
+.app-shell > .toast {
+  border: 1px solid #d4e2c6;
+  border-radius: 12px;
+  color: #263e31;
+  background: #f5faeb;
+  box-shadow: 0 8px 30px #172b231c;
+  font-size: 12px;
+  padding: 14px 18px;
+}
+
+.app-shell > .toast svg {
+  color: #214c38;
+  flex-shrink: 0;
+}
+
+.app-shell > .toast > button {
+  color: #214c38;
+  font-weight: 700;
+  min-height: 32px;
+}
+
+/* Native dialogs keep their palette when promoted to the browser's top layer. */
+.dialog {
+  background: #fdfefa;
+  border: 1px solid #d8e2ce;
+  border-radius: 20px;
+  box-shadow: 0 30px 110px #102a2260;
+  padding: 30px;
+  width: min(540px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  color: #172b23;
+  scrollbar-width: thin;
+  scrollbar-color: #becdb2 transparent;
+}
+
+.dialog::backdrop {
+  background: #10281ec2;
+  backdrop-filter: blur(7px);
+}
+
+.dialog-heading {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.dialog-heading h2 {
+  color: #172b23;
+  font-family: Manrope, sans-serif;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -1px;
+}
+
+.dialog-heading > .icon-button {
+  color: #415d47;
+  background: #f1f5e9;
+  border: 1px solid #dfe7d5;
+  border-radius: 10px;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+}
+
+.dialog .dialog-lede {
+  color: #59675f;
+  font-size: 12px;
+  line-height: 1.85;
+  margin-top: 16px;
+}
+
+.dialog .connect-visual {
+  gap: 15px;
+  color: #426b4a;
+  padding-top: 29px;
+}
+
+.dialog .connect-visual > span:not(.brand) {
+  width: 60px;
+  height: 60px;
+  background: #eef5e3;
+  border-color: #d4e3c1;
+  border-radius: 16px;
+}
+
+.dialog .connect-visual .brand {
+  background: #d5f479;
+  border-color: #c5dba4;
+}
+
+.dialog .connect-visual > i {
+  background: #b3c49f;
+}
+
+.dialog .check-list {
+  gap: 19px;
+  margin: 24px 0;
+}
+
+.dialog .check-list li {
+  color: #426b4a;
+  gap: 11px;
+}
+
+.dialog .check-list li > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.dialog .check-list strong {
+  color: #263e31;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dialog .check-list div span {
+  color: #617168;
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.dialog .configuration-note {
+  background: #f4f8ed;
+  border-color: #dce7ce;
+  border-radius: 11px;
+  padding: 16px;
+}
+
+.dialog .configuration-note strong {
+  color: #304a39;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dialog .configuration-note p {
+  color: #59675f;
+  font-size: 11px;
+}
+
+.dialog .dialog-secondary {
+  color: #48644f;
+  font-size: 11px;
+  min-height: 32px;
+  margin-top: 12px;
+}
+
+.dialog .inline-note {
+  color: #617168;
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.dialog > .button + .button {
+  margin-top: 10px;
+}
+
+.dialog .target-inputs {
+  margin-top: 22px;
+  gap: 8px;
+}
+
+.dialog .target-inputs label {
+  border-color: #e2e8da;
+  color: #304a39;
+  padding: 12px 0;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dialog .target-inputs label > div {
+  background: #f5f8ee;
+  border-color: #dce6d0;
+  border-radius: 9px;
+  padding: 10px 12px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dialog .target-inputs label > div:focus-within {
+  outline: 2px solid #214c38;
+  outline-offset: 2px;
+}
+
+.dialog .target-inputs input {
+  color: #172b23;
+  font-family: Manrope, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dialog .target-inputs label > div > span {
+  color: #617168;
+}
+
+.dialog .target-total {
+  color: #426b4a;
+  padding: 19px 0;
+  font-size: 12px;
+}
+
+.dialog .target-total strong {
+  color: #214c38;
+  font-family: Manrope, sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.dialog .target-total.invalid strong {
+  color: #9b502a;
+}
+
+.dialog .classification-fields {
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.dialog .classification-fields label {
+  border-color: #e0e7d7;
+  gap: 15px;
+  padding-bottom: 16px;
+}
+
+.dialog .classification-fields strong {
+  color: #172b23;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dialog .classification-fields small {
+  color: #617168;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.dialog .classification-fields select {
+  color: #263e31;
+  background: #f5f8ee;
+  border-color: #dce6d0;
+  border-radius: 9px;
+  min-height: 42px;
+  padding: 10px;
+  font-size: 11px;
+}
+
+.dialog .classification-note {
+  color: #48644f;
+  background: #f0f6e6;
+  border: 1px solid #dfe9d0;
+  border-radius: 10px;
+  padding: 15px;
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.dialog .classification-note > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.dialog .classification-confirm {
+  color: #59675f;
+  gap: 10px;
+  font-size: 11px;
+  line-height: 1.75;
+  margin: 21px 0;
+}
+
+.dialog .classification-confirm input {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: #214c38;
+}
+
+.dialog .save-name-label {
+  color: #263e31;
+  font-size: 12px;
+  margin-top: 23px;
+}
+
+.dialog .save-name-label > input {
+  color: #172b23;
+  border-color: #d8e3cb;
+  border-radius: 10px;
+  background: #f7faf2;
+  padding: 14px;
+  font-size: 13px;
+}
+
+.dialog .save-name-label > input::placeholder {
+  color: #6f7d70;
+}
+
+.dialog .historical-notice {
+  color: #48644f;
+  background: #f1f6e8;
+  border-color: #dce7ce;
+  border-radius: 11px;
+  padding: 16px;
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.dialog .historical-notice svg {
+  color: #426b4a;
+  flex-shrink: 0;
+}
+
+.dialog .historical-notice strong {
+  color: #304a39;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dialog:has(.snapshot-meta) {
+  width: min(800px, calc(100vw - 32px));
+  max-width: 800px;
+}
+
+.dialog .snapshot-meta {
+  border: 1px solid #dde6d1;
+  border-radius: 12px;
+  background: #f8faf4;
+  padding: 20px;
+  gap: 20px 25px;
+}
+
+.dialog .snapshot-meta dt {
+  color: #617168;
+  font-size: 10px;
+  font-weight: 500;
+  margin-bottom: 7px;
+}
+
+.dialog .snapshot-meta dd {
+  color: #263e31;
+  font-family: Manrope, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dialog .snapshot-policy h3,
+.dialog .snapshot-moves h3,
+.dialog .snapshot-provenance h3,
+.dialog .method-sections h3 {
+  color: #263e31;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dialog .snapshot-policy p,
+.dialog .snapshot-provenance p,
+.dialog .snapshot-warnings p,
+.dialog .method-sections p,
+.dialog .snapshot-holdings > p {
+  color: #59675f;
+  font-size: 11px;
+  line-height: 1.85;
+}
+
+.dialog .snapshot-moves > div {
+  border-color: #e1e8d9;
+  padding: 15px 0;
+  gap: 12px;
+  color: #263e31;
+  font-size: 12px;
+}
+
+.dialog .snapshot-moves .trade-side {
+  width: 40px;
+  height: 29px;
+  border-radius: 7px;
+  text-transform: uppercase;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.dialog .snapshot-moves > div > span:not(.trade-side) {
+  color: #617168;
+  font-size: 10px;
+}
+
+.dialog .snapshot-moves > div > b {
+  color: #172b23;
+  font-family: Manrope, sans-serif;
+  font-size: 13px;
+}
+
+.dialog .snapshot-moves > p {
+  color: #617168;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.dialog .snapshot-warnings {
+  border: 1px solid #ead7b3;
+  border-radius: 10px;
+  background: #fff6e8;
+  padding: 16px;
+}
+
+.dialog .snapshot-warnings p {
+  color: #785023;
+}
+
+.dialog .cash-proof {
+  background: #fff;
+  border: 1px solid #dce6d0;
+  border-radius: 13px;
+  overflow: hidden;
+  margin-top: 24px;
+}
+
+.dialog .cash-proof .section-heading {
+  padding: 20px;
+  gap: 15px;
+  align-items: flex-start;
+}
+
+.dialog .cash-proof .section-heading h2 {
+  color: #263e31;
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: -0.4px;
+}
+
+.dialog .cash-proof .section-heading p {
+  color: #59675f;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.dialog .cash-proof .step-label {
+  color: #5a6c60;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+}
+
+.dialog .cash-proof .muted-icon {
+  color: #426b4a;
+  flex-shrink: 0;
+}
+
+.dialog .cash-proof .inline-note {
+  color: #617168;
+  border-color: #e0e7d7;
+  padding: 15px 20px;
+  font-size: 10px;
+}
+
+.dialog .snapshot-holdings {
+  margin: 24px 0;
+  border: 1px solid #dce6d0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.dialog .snapshot-holdings > summary {
+  cursor: pointer;
+  color: #304a39;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f4f8ed;
+  padding: 16px;
+}
+
+.dialog .snapshot-holdings table {
+  min-width: 620px;
+}
+
+.dialog .snapshot-holdings th {
+  color: #56675b;
+  background: #f8faf4;
+  font-size: 9px;
+  padding: 13px;
+}
+
+.dialog .snapshot-holdings td {
+  color: #42564a;
+  border-color: #e4eadd;
+  font-size: 11px;
+  padding: 14px 13px;
+}
+
+.dialog .snapshot-holdings td strong {
+  color: #263e31;
+}
+
+.dialog .snapshot-holdings td small {
+  color: #617168;
+}
+
+.dialog .snapshot-holdings > p {
+  padding: 15px 16px;
+  border-top: 1px solid #e4eadd;
+}
+
+.dialog .form-error {
+  color: #8a422c;
+  background: #fff1ec;
+  border-color: #eac9bc;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.dialog .danger-button {
+  background: #934b35;
+  border-color: #934b35;
+  color: #fff;
+}
+
+.dialog .danger-button:hover:not(:disabled) {
+  background: #7d3c29;
+  border-color: #7d3c29;
+}
+
+.dialog :is(button, a, select, input, summary, [tabindex]):focus-visible {
+  outline: 2px solid #214c38;
+  outline-offset: 3px;
+}
+
+.dialog .table-scroll:focus-visible {
+  outline-offset: -3px;
+}
+
+@media (min-width: 1081px) {
+  .app-shell .workspace-onboarding {
+    padding-block: 18px 15px;
+  }
+
+  .app-shell .onboarding-steps {
+    margin-top: 12px;
+  }
+
+  .app-shell .onboarding-steps > button {
+    padding-block: 10px;
+  }
+
+  .app-shell .onboarding-bottom {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+}
+
+@media (max-width: 1240px) {
+  .app-shell .rebalance-layout {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 18px;
+  }
+
+  .app-shell .plan-summary {
+    padding: 23px;
+  }
+
+  .app-shell .target-values {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .app-shell .target-values > div {
+    padding: 10px 12px;
+    flex-wrap: nowrap;
+  }
+
+  .app-shell .connection-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell .connection-intro {
+    flex-wrap: wrap;
+  }
+
+  .app-shell .connection-intro > div:nth-child(2) {
+    flex-basis: calc(100% - 90px);
+  }
+
+  .app-shell .connection-intro > .button {
+    margin-left: 85px;
+  }
+
+  .app-shell .saved-plan-row {
+    flex-wrap: wrap;
+  }
+
+  .app-shell .saved-plan-description {
+    flex-basis: calc(100% - 70px);
+  }
+
+  .app-shell .saved-plan-drift {
+    margin-left: 63px;
+    padding: 0;
+  }
+
+  .app-shell .saved-plan-actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 1080px) {
+  .app-shell .rebalance-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell .plan-sidebar {
+    position: static;
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .app-shell .plan-caveats {
+    padding: 20px 4px;
+  }
+
+  .app-shell .target-values {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .app-shell .target-values > div {
+    flex-wrap: wrap;
+  }
+
+  .app-shell .onboarding-title {
+    flex-wrap: wrap;
+  }
+
+  .app-shell .onboarding-progress {
+    margin-left: 50px;
+    margin-top: -2px;
+  }
+
+  .app-shell .onboarding-bottom {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell .workspace-onboarding {
+    padding: 19px;
+    margin-bottom: 22px;
+  }
+
+  .app-shell .onboarding-title {
+    align-items: flex-start;
+  }
+
+  .app-shell .onboarding-title > div {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .app-shell .onboarding-title h2 {
+    font-size: 16px;
+    line-height: 1.4;
+  }
+
+  .app-shell .onboarding-title p {
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  .app-shell .onboarding-progress {
+    margin-left: 50px;
+    flex-basis: auto;
+  }
+
+  .app-shell .onboarding-steps {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 17px;
+  }
+
+  .app-shell .onboarding-steps > button {
+    padding: 13px;
+    gap: 11px;
+  }
+
+  .app-shell .onboarding-steps strong {
+    font-size: 12px;
+  }
+
+  .app-shell .onboarding-bottom {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 13px;
+    margin-top: 17px;
+    padding-top: 16px;
+  }
+
+  .app-shell .onboarding-bottom .button {
+    min-height: 40px;
+    font-size: 11px;
+  }
+
+  .app-shell .preference-status {
+    flex-wrap: wrap;
+    gap: 11px;
+  }
+
+  .app-shell .banner {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .app-shell .banner > span {
+    flex-basis: calc(100% - 30px);
+  }
+
+  .app-shell .banner button,
+  .app-shell .banner > a {
+    margin-left: 27px;
+    white-space: normal;
+  }
+
+  .app-shell .target-card .section-heading,
+  .app-shell .constraints-card .section-heading,
+  .app-shell .plan-trades .section-heading,
+  .app-shell .cash-proof .section-heading {
+    padding: 22px 20px 18px;
+    gap: 14px;
+  }
+
+  .app-shell .target-card .section-heading {
+    flex-wrap: wrap;
+  }
+
+  .app-shell .target-bar {
+    margin: 4px 20px 17px;
+    height: 12px;
+  }
+
+  .app-shell .target-values {
+    grid-template-columns: 1fr;
+    padding: 0 20px;
+  }
+
+  .app-shell .target-values > div {
+    flex-wrap: nowrap;
+    padding: 11px 12px;
+  }
+
+  .app-shell .inline-note {
+    padding: 17px 20px 20px;
+  }
+
+  .app-shell .form-grid {
+    gap: 21px;
+    padding: 6px 20px 24px;
+  }
+
+  .app-shell .toggle-row {
+    padding: 20px;
+  }
+
+  .app-shell .toggle-row input {
+    right: 20px;
+  }
+
+  .app-shell .constraint-pills {
+    padding: 15px 20px;
+    gap: 10px 14px;
+  }
+
+  .app-shell .plan-header-actions {
+    justify-content: flex-start;
+  }
+
+  .app-shell .trade-sequence {
+    padding: 13px 20px;
+    gap: 8px;
+  }
+
+  .app-shell .trade-row {
+    padding: 21px 20px;
+    gap: 11px;
+  }
+
+  .app-shell .trade-detail > strong,
+  .app-shell .trade-value > strong {
+    font-size: 13px;
+  }
+
+  .app-shell .plan-sidebar {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .app-shell .plan-summary {
+    padding: 25px;
+  }
+
+  .app-shell .plan-caveats {
+    padding: 24px 5px;
+  }
+
+  .app-shell .cash-proof td:first-child,
+  .app-shell .cash-proof th:first-child {
+    padding-left: 20px;
+  }
+
+  .app-shell .planning-recovery {
+    padding: 4px 20px 22px;
+  }
+
+  .app-shell .recovery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .blocker-list {
+    padding: 21px 20px;
+  }
+
+  .app-shell .connection-intro {
+    padding: 23px;
+    gap: 17px;
+    margin-bottom: 25px;
+  }
+
+  .app-shell .connection-intro-icon {
+    width: 51px;
+    height: 51px;
+    border-radius: 15px;
+  }
+
+  .app-shell .connection-intro > div:nth-child(2) {
+    flex-basis: calc(100% - 70px);
+  }
+
+  .app-shell .connection-intro h2 {
+    font-size: 21px;
+    line-height: 1.35;
+    letter-spacing: -0.7px;
+  }
+
+  .app-shell .connection-intro > .button {
+    margin-left: 0;
+    width: 100%;
+    font-size: 11px;
+  }
+
+  .app-shell .connection-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .app-shell .connection-card {
+    padding: 23px;
+  }
+
+  .app-shell .connection-value {
+    font-size: 31px;
+  }
+
+  .app-shell .connection-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 25px 3px;
+  }
+
+  .app-shell .connection-data-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+    padding: 22px;
+  }
+
+  .app-shell .saved-plans-card > .section-heading {
+    padding: 24px 21px;
+    flex-wrap: wrap;
+    gap: 17px;
+  }
+
+  .app-shell .saved-plan-row {
+    padding: 22px 21px;
+    gap: 14px;
+  }
+
+  .app-shell .saved-plan-description {
+    flex-basis: calc(100% - 60px);
+  }
+
+  .app-shell .saved-plan-description h3 {
+    font-size: 14px;
+  }
+
+  .app-shell .saved-plan-drift {
+    margin-left: 58px;
+  }
+
+  .app-shell .saved-plan-actions {
+    gap: 5px;
+  }
+
+  .app-shell .saved-plan-actions > .button {
+    font-size: 10px;
+    padding: 8px 10px;
+  }
+
+  .app-shell .saved-plans-card > .card-footnote {
+    padding: 17px 21px;
+    align-items: flex-start;
+  }
+
+  .app-shell .saved-plans-card > .card-footnote svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .app-shell .workspace-gate {
+    margin: 10px auto 45px;
+    padding: 30px 22px;
+    gap: 20px;
+    border-radius: 18px;
+  }
+
+  .app-shell .workspace-gate h1 {
+    font-size: clamp(28px, 6.5vw, 38px);
+    letter-spacing: -1.2px;
+  }
+
+  .app-shell .workspace-gate > p {
+    font-size: 12px;
+  }
+
+  .app-shell .gate-actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .app-shell .workspace-gate .button {
+    white-space: normal;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .app-shell .connection-checklist,
+  .dialog .connection-checklist {
+    padding: 16px;
+  }
+
+  .app-shell .loading-grid {
+    grid-template-columns: 1fr;
+    gap: 13px;
+  }
+
+  .app-shell .loading-grid .skeleton {
+    height: 155px;
+  }
+
+  .app-shell > .toast,
+  .app-shell > .loading-indicator {
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+    transform: none;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  .dialog {
+    padding: 24px;
+    border-radius: 18px;
+    width: calc(100vw - 28px);
+    max-height: calc(100dvh - 32px);
+  }
+
+  .dialog:has(.snapshot-meta) {
+    width: calc(100vw - 28px);
+  }
+
+  .dialog-heading h2 {
+    font-size: 23px;
+    letter-spacing: -0.8px;
+  }
+
+  .dialog .snapshot-meta {
+    padding: 17px;
+    gap: 19px;
+  }
+
+  .dialog .snapshot-meta dd {
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .dialog .snapshot-moves > div {
+    gap: 10px;
+  }
+
+  .dialog .cash-proof .section-heading {
+    padding: 17px;
+  }
+
+  .dialog .cash-proof .section-heading h2 {
+    font-size: 15px;
+  }
+
+  .dialog .cash-proof .inline-note {
+    padding: 14px 17px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .money-input input,
+  .app-shell .field-label select,
+  .dialog .save-name-label > input,
+  .dialog .classification-fields select,
+  .dialog .target-inputs input {
+    font-size: 16px;
+  }
+
+  .app-shell .trade-row {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .app-shell .trade-side {
+    width: 32px;
+    height: 32px;
+  }
+
+  .app-shell .trade-value {
+    grid-column: 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+    gap: 12px;
+    padding-top: 9px;
+  }
+
+  .app-shell .trade-value > span {
+    margin-top: 0;
+  }
+
+  .app-shell .saved-plan-drift {
+    margin-left: 58px;
+  }
+
+  .app-shell .saved-plan-actions {
+    flex-basis: 100%;
+    margin-left: 58px;
+    justify-content: space-between;
+  }
+
+  .app-shell .saved-plan-actions > .button {
+    flex: 1;
+    min-height: 38px;
+    font-size: 11px;
+  }
+
+  .app-shell .connection-intro > div:nth-child(2) {
+    flex-basis: 100%;
+  }
+
+  .app-shell .connection-intro h2 {
+    font-size: 23px;
+  }
+
+  .dialog {
+    padding: 22px 19px;
+  }
+
+  .dialog-heading h2 {
+    font-size: 21px;
+    line-height: 1.35;
+  }
+
+  .dialog .target-inputs label {
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .dialog .target-inputs label > div {
+    padding: 10px 8px;
+    gap: 3px;
+  }
+
+  .dialog .target-inputs input {
+    width: 43px;
+  }
+
+  .dialog .classification-fields label {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .dialog .classification-fields label > span {
+    flex-basis: 100%;
+  }
+
+  .dialog .classification-fields select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .dialog .snapshot-meta {
+    grid-template-columns: 1fr;
+    gap: 17px;
+  }
+
+  .dialog .snapshot-moves > div {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .dialog .snapshot-moves > div > span:not(.trade-side) {
+    grid-column: 2;
+    overflow-wrap: anywhere;
+    font-size: 11px;
+  }
+
+  .dialog .snapshot-moves > div > b {
+    grid-column: 2;
+    margin-left: 0;
+  }
+
+  .dialog .button.full-width {
+    white-space: normal;
+    font-size: 11px;
+    line-height: 1.6;
+    padding: 12px;
+  }
+
+  .dialog .workspace-help-links {
+    gap: 9px 15px;
+    font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .skeleton,
+  .app-shell .spin,
+  .dialog .spin {
+    animation: none;
+  }
+
+  .app-shell .connection-card,
+  .app-shell .saved-plan-row,
+  .app-shell .onboarding-steps > button,
+  .app-shell .money-input,
+  .app-shell .field-label select,
+  .app-shell .switch,
+  .app-shell .switch::after {
+    transition: none;
+  }
+}

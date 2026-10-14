@@ -155,39 +155,41 @@ input::-webkit-inner-spin-button {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  width: 28px;
-  height: 28px;
-  transform: rotate(-18deg);
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: #214c38;
+  border-radius: 10px;
 }
 .brand-mark i {
   display: block;
-  width: 7px;
-  background: var(--green);
-  border-radius: 3px;
-  height: 19px;
+  width: 4px;
+  background: #d5f479;
+  border-radius: 2px;
+  height: 13px;
+  transform: rotate(20deg);
 }
 .brand-mark i:nth-child(2) {
-  height: 28px;
-  background: #71977d;
+  height: 21px;
 }
 .brand-mark i:nth-child(3) {
-  height: 15px;
-  background: #b7c5a6;
+  height: 16px;
 }
 .brand.compact .brand-mark {
   width: 20px;
   height: 20px;
   gap: 2px;
+  border-radius: 6px;
 }
 .brand.compact .brand-mark i {
-  width: 5px;
-  height: 13px;
+  width: 3px;
+  height: 8px;
 }
 .brand.compact .brand-mark i:nth-child(2) {
-  height: 20px;
+  height: 14px;
 }
 .brand.compact .brand-mark i:nth-child(3) {
-  height: 10px;
+  height: 11px;
 }
 .workspace {
   display: flex;
@@ -447,7 +449,7 @@ input::-webkit-inner-spin-button {
   box-shadow: 0 0 0 1px #e2e5dc;
   font-size: 11px;
   font-weight: 700;
-  color: #67735b;
+  color: #4c5d44;
 }
 .mobile-menu {
   display: none !important;
@@ -1366,7 +1368,7 @@ tbody tr:hover {
 }
 .error-banner {
   background: #fbf1e9;
-  color: #9a6543;
+  color: #834c2e;
   border-color: #ecd6c6;
 }
 .warning-banner {
@@ -1376,6 +1378,7 @@ tbody tr:hover {
 }
 .scenario-banner {
   background: #eef2e4;
+  color: #4d6047;
 }
 .rebalance-layout {
   display: grid;
@@ -1795,7 +1798,7 @@ tbody tr:hover {
   border: 1px solid #f0e3c9;
   padding: 13px;
   border-radius: 6px;
-  color: #9b865e;
+  color: #705b36;
   font-size: 12px;
   line-height: 1.7;
 }
@@ -1927,7 +1930,7 @@ tbody tr:hover {
 }
 .connection-tag.issue {
   background: #faf2e4;
-  color: #ad9063;
+  color: #705b36;
   border-color: #efe0c6;
 }
 .connection-card h3 {
@@ -1985,7 +1988,7 @@ tbody tr:hover {
 }
 .connection-card .account-issue {
   font-size: 11px;
-  color: #ac9569;
+  color: #705b36;
 }
 .connection-bottom {
   display: flex;
@@ -2004,7 +2007,7 @@ tbody tr:hover {
   font-family: 'DM Sans';
   font-weight: 500;
   font-size: 12px;
-  color: #7d926b;
+  color: #4c613e;
 }
 .connection-bottom p {
   font-size: 11px;
@@ -2013,7 +2016,7 @@ tbody tr:hover {
   margin-top: 4px;
 }
 .danger {
-  color: #aa806a;
+  color: #884c37;
 }
 .setup-card {
   padding: 26px;
@@ -3499,7 +3502,7 @@ td {
 .connection-details > span,
 .target-inputs label,
 .target-inputs label > div > span {
-  color: #657a54;
+  color: #4c613e;
 }
 .connection-intro > .eyebrow,
 .configuration-note strong,
@@ -4335,4 +4338,191 @@ td {
   font-size: 10px;
   color: #526558;
   line-height: 1.4;
+}
+
+.workspace-help-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  font-size: 12px;
+}
+.workspace-help-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #395e46;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sidebar-bottom > .workspace-help-links {
+  flex-direction: column;
+  padding: 10px 8px;
+  gap: 13px;
+  font-size: 11px;
+}
+.connection-checklist {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #dfe7df;
+  border-radius: 12px;
+  background: #f7faf6;
+  padding: 20px;
+}
+.connection-checklist ol {
+  list-style: none;
+  display: grid;
+  gap: 18px;
+  padding: 0;
+  margin: 0;
+}
+.connection-checklist li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.connection-checklist li > span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #e6eee3;
+  color: #31563e;
+  font-size: 11px;
+  font-weight: 600;
+}
+.connection-checklist strong {
+  display: block;
+  color: #24402c;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.connection-checklist li p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #58685b;
+  margin-top: 3px;
+}
+.connection-checklist a {
+  color: #315c43;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.connection-checklist a svg {
+  vertical-align: middle;
+}
+.connection-checklist .connected-beta-note {
+  margin-top: 18px;
+  padding-top: 15px;
+  border-top: 1px solid #dfe7df;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #5c695d;
+}
+.connected-beta-note strong {
+  display: inline;
+  font-size: inherit;
+}
+.dialog > .connection-checklist {
+  margin: 20px 0;
+}
+.dialog > .workspace-help-links {
+  justify-content: center;
+  margin-top: 15px;
+}
+.planning-recovery {
+  padding: 24px;
+  border-bottom: 1px solid var(--line);
+}
+.planning-recovery > h3 {
+  font-size: 14px;
+  margin-bottom: 15px;
+}
+.recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.recovery-grid article {
+  padding: 17px;
+  border: 1px solid #e1e7dc;
+  background: #f8faf5;
+  border-radius: 10px;
+}
+.recovery-grid article > svg {
+  color: #58704e;
+  margin-bottom: 10px;
+}
+.recovery-grid h4 {
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 5px;
+}
+.recovery-grid p {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #5f6b5a;
+  margin-bottom: 14px;
+}
+.recovery-grid .text-button {
+  font-size: 11px;
+  text-align: left;
+}
+.account-recovery {
+  border-top: 1px solid var(--line);
+  margin-top: 15px;
+  padding-top: 15px;
+}
+.account-recovery > strong {
+  display: block;
+  color: #42523c;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.connection-card .account-recovery > p {
+  font-size: 11px;
+  line-height: 1.8;
+  margin: 7px 0 11px;
+  color: #63705d;
+}
+.account-recovery .text-button {
+  font-size: 11px;
+  text-align: left;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.error-banner > a {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  flex-shrink: 0;
+  color: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.error-banner > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.gate-sync-note {
+  max-width: 450px;
+  font-size: 12px;
+  color: #58685b;
+  line-height: 1.7;
+}
+@media (max-width: 720px) {
+  .connection-checklist {
+    padding: 16px;
+  }
+  .recovery-grid {
+    grid-template-columns: 1fr;
+  }
+  .planning-recovery {
+    padding: 20px;
+  }
+  .error-banner > a {
+    font-size: 11px;
+  }
 }

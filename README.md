@@ -16,6 +16,10 @@ Built for the [SnapTrade Product Engineer application](https://careers.snaptrade
 - **`/app`** opens a private SnapTrade workspace. Sign-in, loading, expired-session, and unavailable-data states never substitute fictional holdings.
 - **`/demo`** is an explicit sample workspace. It uses fixed illustrative data, saves sample preferences and plans in this browser, and makes no private API requests.
 - **`/privacy`** explains storage, retention, deletion, and disconnect behavior.
+- **`/guide`** walks through connection setup, portfolio review, account funding, drift, and historical plans.
+- **`/support`** provides specific recovery paths and a privacy-conscious GitHub issue draft. It never submits a report automatically.
+
+The public site includes an interactive, calculation-backed allocation preview and a per-account funding example. Both use the same fictional portfolio as the demo. Connected-beta prerequisites and the current consent registration name are explained before authorization.
 
 In a connected workspace, review your targets, cash reserve, asset classifications, and account tax treatment before saving your first policy. Save later changes explicitly. Preferences follow the verified SnapTrade identity across sessions; hypothetical contributions belong to individual scenarios.
 
@@ -47,7 +51,7 @@ The planner buys only eligible securities already held in each selected account.
 
 ## Verification
 
-Local verification on October 14, 2026: **184 unit/integration tests and 10 migration tests**, including real disposable PostgreSQL checks, and **36 Chromium browser tests**. Browser coverage includes onboarding, persistence, historical provenance, failure recovery, mobile layout, and automated WCAG A/AA checks using axe.
+Local verification on October 14, 2026: **195 unit/integration tests and 10 migration tests**, including real disposable PostgreSQL checks, and **38 Chromium browser tests**. Browser coverage includes onboarding, persistence, historical provenance, failure recovery, public/help journeys, support hydration, mobile layout, and automated WCAG A/AA checks using axe.
 
 ```sh
 npm run typecheck
@@ -67,3 +71,5 @@ This is a Test OAuth release, limited by SnapTrade to five users. Public rollout
 ## Stack
 
 Next.js, React, TypeScript, Node.js 22, and Postgres. OAuth credentials, workspace policies, saved financial snapshots, and the 45-second session snapshot cache are encrypted on the server. The pure planner is separate from the integration and interface.
+
+Service failures include a random request reference for support. Server diagnostics record only the reference, bounded service code, and HTTP status; they do not record source errors, holdings, tokens, or request bodies. Public resources are server-rendered and make no private API requests. Canonical URLs, a social share image, a public-only sitemap, and private-route indexing controls are included.

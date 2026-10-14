@@ -1,363 +1,559 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import {
+  ArrowDown,
   ArrowRight,
   ArrowUpRight,
+  CircleArrowDown,
+  Bookmark,
   Check,
+  ChevronDown,
+  FileCheck2,
+  Fingerprint,
   GitCompareArrows,
   Landmark,
   LockKeyhole,
+  MoveUpRight,
   ShieldCheck,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { makeDemoPortfolio } from '@/lib/demo';
 import { accountValueCents, defaultTargets, generatePlan } from '@/lib/planner';
+import LandingHeader from '@/components/landing/header';
+import PortfolioPreview from '@/components/landing/portfolio-preview';
 import styles from './landing.module.css';
 
-const format = (cents: number) =>
+export const metadata: Metadata = { alternates: { canonical: '/' } };
+
+const dollars = (cents: number, digits = 0) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   }).format(cents / 100);
+
+const questions = [
+  {
+    title: 'Can I connect my own accounts?',
+    text: (
+      <>
+        Connected access is currently a limited beta using SnapTrade’s five-user test access. A
+        broader rollout is pending SnapTrade approval. The interactive demo is available now and
+        needs no sign-in. If you already have beta access,{' '}
+        <Link href="/app">open your workspace</Link>.
+      </>
+    ),
+  },
+  {
+    title: 'Will Balance trade or move my money?',
+    text: (
+      <>
+        No. Balance reads shared account data and builds a simulation. It never places an order or
+        transfers cash. You decide whether to act, and you place any trades at your own brokerage.
+      </>
+    ),
+  },
+  {
+    title: 'Which portfolios does the planner support?',
+    text: (
+      <>
+        The current planner is built for USD stocks and ETFs across taxable and retirement accounts.
+        You choose targets for US equities, international equities, and bonds. It buys eligible
+        securities already held in each account. Mixed currencies, unsupported holdings, and
+        incomplete data need review before planning.
+      </>
+    ),
+  },
+  {
+    title: 'How does Balance choose the proposed moves?',
+    text: (
+      <>
+        It looks for whole-share moves that bring your allocation closer to your targets while
+        respecting cash and sales constraints in each account. The method is deterministic and
+        bounded; it does not guarantee a perfect or mathematically optimal allocation.{' '}
+        <Link href="/guide">Read the planning guide</Link>.
+      </>
+    ),
+  },
+  {
+    title: 'Are prices, taxes, and fees included?',
+    text: (
+      <>
+        Prices are brokerage snapshots and may be delayed. Fees, taxes, spreads, settlement time,
+        and foreign exchange are not modeled. Taxable sales start disabled, and stale or unavailable
+        prices pause the plan. Always review current conditions before making a decision.
+      </>
+    ),
+  },
+  {
+    title: 'What happens to my data?',
+    text: (
+      <>
+        Connection credentials and saved financial data are encrypted on the server. You can delete
+        a saved plan, clear your saved workspace data, or disconnect from SnapTrade. The demo keeps
+        only sample preferences and plans in your browser.{' '}
+        <Link href="/privacy">See our privacy details</Link>.
+      </>
+    ),
+  },
+];
+
 export default function Home() {
   const sample = makeDemoPortfolio();
+  const reserveCents = 25_000;
   const result = generatePlan(sample.accounts, {
     targets: defaultTargets,
     allowTaxableSales: false,
-    cashBufferCents: 25000,
+    cashBufferCents: reserveCents,
     contributionCents: 0,
     contributionAccountId: null,
-    minimumTradeCents: 10000,
+    minimumTradeCents: 10_000,
     now: sample.asOf,
   });
-  const total = sample.accounts.reduce((sum, a) => sum + accountValueCents(a), 0);
+  const total = sample.accounts.reduce((sum, account) => sum + accountValueCents(account), 0);
+  const ledgers = sample.accounts.map((account) => {
+    const sells = result.trades
+      .filter((trade) => trade.accountId === account.id && trade.side === 'sell')
+      .reduce((sum, trade) => sum + trade.valueCents, 0);
+    const buys = result.trades
+      .filter((trade) => trade.accountId === account.id && trade.side === 'buy')
+      .reduce((sum, trade) => sum + trade.valueCents, 0);
+    return { ...account, sells, buys, after: account.cashCents + sells - buys };
+  });
   return (
     <div className={styles.page}>
       <a className="skip-link" href="#content">
         Skip to content
       </a>
-      <header className={styles.header}>
-        <Link className={styles.logo} href="/" aria-label="Balance home">
-          <span aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
-          balance.
-        </Link>
-        <nav aria-label="Main navigation">
-          <a href="#how-it-works">How it works</a>
-          <a href="#your-control">Your control</a>
-          <Link href="/privacy">Privacy</Link>
-        </nav>
-        <Link className={styles.headerCta} href="/app">
-          Open workspace <ArrowUpRight size={15} />
-        </Link>
-      </header>
-      <main className={styles.main} id="content">
+      <LandingHeader />
+      <main className={styles.main} id="content" tabIndex={-1}>
         <section className={styles.hero}>
           <div className={styles.heroCopy}>
-            <span className={styles.eyebrow}>A LITTLE CLARITY FOR YOUR NEXT MOVE</span>
+            <span className={styles.heroEyebrow}>
+              <span /> LESS NOISE. MORE PERSPECTIVE.
+            </span>
             <h1>
-              Your accounts.
+              Your portfolio.
               <br />
-              One considered
+              A clearer
               <br />
-              <em>plan.</em>
+              <em>perspective.</em>
             </h1>
             <p>
-              Bring your investments into one view. Set your own targets. Review a rebalance that
-              respects the cash in every account.
+              Different accounts. One bigger picture. Bring your investments together and build a
+              rebalance plan that works within your boundaries.
             </p>
             <div className={styles.actions}>
-              <Link className={styles.primary} href="/app">
-                Connect your portfolio <ArrowRight size={17} />
+              <Link className={styles.primary} href="/demo">
+                Try the interactive demo
+                <ArrowRight size={18} />
               </Link>
-              <Link className={styles.secondary} href="/demo">
-                Explore sample portfolio <ArrowUpRight size={16} />
-              </Link>
+              <a className={styles.secondary} href="#how-it-works">
+                See how it works
+                <CircleArrowDown size={18} />
+              </a>
             </div>
             <div className={styles.heroTrust}>
               <ShieldCheck size={16} />
-              <span>Read-only access. Every decision stays yours.</span>
+              <span>No sign-in for the demo. No trades, ever.</span>
             </div>
+            <span className={styles.betaNote}>
+              Built for USD stocks & ETFs. Connected access is in limited beta.
+            </span>
           </div>
-          <div className={styles.preview} aria-label="Illustrative rebalancing plan">
-            <div className={styles.previewTop}>
-              <span>
-                <i />
-                SAMPLE PORTFOLIO
-              </span>
-              <span>USD</span>
-            </div>
-            <div className={styles.previewTotal}>
-              <span>Your whole picture</span>
-              <strong>{format(total)}</strong>
-              <small>3 illustrative brokerage accounts</small>
-            </div>
-            <div className={styles.mix}>
-              <span style={{ width: '50%' }} />
-              <span style={{ width: '30%' }} />
-              <span style={{ width: '20%' }} />
-            </div>
-            <div className={styles.mixLabels}>
-              <span>50% US equities</span>
-              <span>30% International</span>
-              <span>20% Bonds</span>
-            </div>
-            <div className={styles.planPreview}>
-              <div className={styles.planPreviewTitle}>
-                <span>
-                  <GitCompareArrows size={17} />A more balanced mix
-                </span>
-                <span>{result.trades.length} moves</span>
-              </div>
-              <div className={styles.drift}>
-                <div>
-                  <span>Current drift</span>
-                  <strong>
-                    {result.driftBefore.toFixed(1)}
-                    <small> pp</small>
-                  </strong>
-                </div>
-                <ArrowRight size={22} />
-                <div>
-                  <span>After the plan</span>
-                  <strong>
-                    {result.driftAfter.toFixed(1)}
-                    <small> pp</small>
-                  </strong>
-                </div>
-              </div>
-              <div className={styles.checks}>
-                <span>
-                  <Check size={13} />
-                  Whole shares
-                </span>
-                <span>
-                  <Check size={13} />
-                  No taxable sales
-                </span>
-                <span>
-                  <Check size={13} />
-                  Cash protected
-                </span>
-              </div>
-            </div>
-            <div className={styles.accountPreview}>
-              {sample.accounts.map((account) => (
-                <div key={account.id}>
-                  <span>
-                    <Landmark size={15} />
-                    {account.broker}
-                  </span>
-                  <strong>{format(accountValueCents(account))}</strong>
-                </div>
-              ))}
-            </div>
-            <p className={styles.exampleNote}>
-              Illustrative holdings and prices. This is a simulation, not a market feed.
-            </p>
-          </div>
+          <PortfolioPreview
+            plan={result}
+            totalCents={total}
+            reserveCents={reserveCents}
+            accountCount={sample.accounts.length}
+          />
         </section>
-        <div className={styles.promiseBar}>
+        <div className={styles.contextStrip}>
+          <p>
+            YOUR PORTFOLIO, CONNECTED
+            <br />
+            <strong>One view. Every detail.</strong>
+          </p>
           <span>
-            Built with <strong>SnapTrade OAuth</strong>
+            <Landmark size={19} />
+            Multiple brokerage accounts
           </span>
           <span>
-            <LockKeyhole size={14} />
-            Your brokerage password stays private
+            <GitCompareArrows size={19} />
+            Account-aware planning
           </span>
           <span>
-            <ShieldCheck size={15} />
-            No permission to place trades
+            <LockKeyhole size={19} />
+            Read-only via SnapTrade
           </span>
         </div>
-        <section className={styles.workflow} id="how-it-works">
-          <div className={styles.sectionIntro}>
-            <span className={styles.eyebrow}>FROM CONNECTED TO CONSIDERED</span>
+
+        <section className={styles.productStory} id="product">
+          <div className={styles.storyIntro}>
+            <span className={styles.eyebrow}>01 / THE BIGGER PICTURE</span>
             <h2>
-              A useful plan starts
+              Less scattered.
               <br />
-              with the whole picture.
+              <em>More considered.</em>
             </h2>
+          </div>
+          <div className={styles.storyCopy}>
             <p>
-              Made for investors with USD stocks and ETFs across multiple accounts, who want to
-              understand their next move before making it.
+              You know the mix you want. But your money lives in different places, with different
+              boundaries.
             </p>
+            <p>
+              Cash at one brokerage can’t fund a purchase at another. Whole shares leave gaps. A
+              taxable account needs its own rules. Balance keeps those details in the picture.
+            </p>
+            <a href="#funding" className={styles.inlineLink}>
+              Follow the cash <ArrowDown size={16} />
+            </a>
+          </div>
+        </section>
+
+        <section className={styles.fundingSection} id="funding" aria-labelledby="funding-heading">
+          <div className={styles.fundingIntro}>
+            <div>
+              <span className={styles.eyebrow}>CLARITY, DOWN TO THE LAST DOLLAR</span>
+              <h2 id="funding-heading">
+                Every move.
+                <br />
+                <em>Accounted for.</em>
+              </h2>
+            </div>
+            <p>
+              A useful rebalance needs more than a better-looking pie chart. See where each proposed
+              buy is funded, and what stays in every account.
+            </p>
+          </div>
+          <div className={styles.fundingLedger}>
+            <div className={styles.ledgerHeading}>
+              <div>
+                <span className={styles.ledgerIcon}>
+                  <Landmark size={20} />
+                </span>
+                <div>
+                  <h3>Three accounts. Three cash boundaries.</h3>
+                  <p>From the same fictional portfolio you can explore in the demo.</p>
+                </div>
+              </div>
+              <span className={styles.ledgerSample}>ILLUSTRATIVE PLAN · USD</span>
+            </div>
+            <p className={styles.ledgerScrollHint}>
+              Scroll to follow each account’s funding <ArrowRight size={13} />
+            </p>
+            <div
+              className={styles.ledgerTableWrap}
+              tabIndex={0}
+              role="region"
+              aria-label="Sample account funding, scroll horizontally to see all columns"
+            >
+              <table className={styles.ledgerTable}>
+                <thead>
+                  <tr>
+                    <th scope="col">ACCOUNT</th>
+                    <th scope="col">REPORTED CASH</th>
+                    <th scope="col">+ EST. SELLS</th>
+                    <th scope="col">− EST. BUYS</th>
+                    <th scope="col">CASH AFTER</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledgers.map((account, index) => (
+                    <tr key={account.id}>
+                      <td>
+                        <span className={styles.brokerNumber}>
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <span>
+                          <strong>{account.broker}</strong>
+                          <small>
+                            {account.name} · {account.number}
+                          </small>
+                        </span>
+                      </td>
+                      <td>{dollars(account.cashCents)}</td>
+                      <td>{dollars(account.sells)}</td>
+                      <td>{dollars(account.buys)}</td>
+                      <td>
+                        <strong>{dollars(account.after)}</strong>
+                        <span className={styles.reserveCheck}>
+                          <Check size={12} />
+                          Reserve kept
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className={styles.ledgerBottom}>
+              <span>
+                <ShieldCheck size={16} />
+                {dollars(reserveCents)} protected in each account
+              </span>
+              <span>Cash stays local. No transfers. No borrowing.</span>
+            </div>
+          </div>
+          <div className={styles.fundingCaption}>
+            <span>Whole-share estimates. Sale proceeds may need to settle before buying.</span>
+            <Link href="/demo?view=rebalance">
+              Explore the complete sample plan <ArrowUpRight size={17} />
+            </Link>
+          </div>
+        </section>
+
+        <section className={styles.workflow} id="how-it-works">
+          <div className={styles.sectionHeading}>
+            <div>
+              <span className={styles.eyebrow}>02 / FIND YOUR NEXT MOVE</span>
+              <h2>
+                From scattered accounts
+                <br />
+                <em>to a clear plan.</em>
+              </h2>
+            </div>
+            <Link className={styles.inlineLink} href="/guide">
+              Read the getting-started guide <ArrowUpRight size={17} />
+            </Link>
           </div>
           <div className={styles.steps}>
             <article>
-              <span className={styles.stepNumber}>01</span>
-              <Landmark size={23} />
-              <h3>Bring your accounts together.</h3>
+              <div className={styles.stepTop}>
+                <span>01</span>
+                <Landmark size={25} />
+              </div>
+              <h3>See everything together.</h3>
               <p>
-                Sign in with SnapTrade Personal and share your connected accounts. Your holdings and
-                cash stay tied to the brokerage they belong to.
+                Start with the demo, or use SnapTrade to share your connected accounts. Understand
+                your holdings, cash, and allocation in one view.
               </p>
+              <div className={styles.stepIllustration}>
+                <span>
+                  <i />
+                  Your brokerage
+                </span>
+                <span>
+                  <i />
+                  Your retirement account
+                </span>
+                <span>
+                  <i />
+                  Your whole picture
+                  <Check size={14} />
+                </span>
+              </div>
             </article>
             <article>
-              <span className={styles.stepNumber}>02</span>
-              <GitCompareArrows size={23} />
-              <h3>Make the assumptions yours.</h3>
+              <div className={styles.stepTop}>
+                <span>02</span>
+                <SlidersHorizontal size={25} />
+              </div>
+              <h3>Make the boundaries yours.</h3>
               <p>
-                Choose a target mix, protect a cash reserve, and review unfamiliar assets. Balance
-                keeps your choices for your next visit.
+                Choose your target mix, cash reserve, and minimum trade. Confirm unfamiliar
+                holdings, and decide whether taxable sales are in scope.
               </p>
+              <div className={styles.miniTargets}>
+                <span style={{ flex: 50 }}>50%</span>
+                <span style={{ flex: 30 }}>30%</span>
+                <span style={{ flex: 20 }}>20%</span>
+                <small>US EQUITIES / INTERNATIONAL / BONDS</small>
+              </div>
             </article>
             <article>
-              <span className={styles.stepNumber}>03</span>
-              <ShieldCheck size={23} />
-              <h3>Review every proposed move.</h3>
+              <div className={styles.stepTop}>
+                <span>03</span>
+                <FileCheck2 size={25} />
+              </div>
+              <h3>Understand the next move.</h3>
               <p>
-                See whole-share trades, each account’s funding, and the remaining drift. Save a
-                dated plan and export it for your own review.
+                Review every proposed trade and its funding. Save a dated snapshot with your
+                original policy and export it for your own review.
               </p>
+              <div className={styles.miniSaved}>
+                <span>
+                  <Bookmark size={19} />
+                </span>
+                <div>
+                  <strong>Your considered plan</strong>
+                  <small>Original data. Decisions in context.</small>
+                </div>
+                <Check size={17} />
+              </div>
             </article>
           </div>
         </section>
-        <section className={styles.control} id="your-control">
-          <div>
-            <span className={styles.eyebrow}>YOUR MONEY. YOUR BOUNDARIES.</span>
-            <h2>
-              The details are
+
+        <section className={styles.controls} id="your-control">
+          <div className={styles.controlVisual} aria-label="Illustrative planning preferences">
+            <div className={styles.controlVisualTop}>
+              <SlidersHorizontal size={20} />
+              <span>Your planning preferences</span>
+              <span>Sample</span>
+            </div>
+            <h3>
+              Good boundaries
               <br />
-              the difference.
+              make better plans.
+            </h3>
+            <div className={styles.controlSetting}>
+              <span>
+                Cash reserve per account<small>Protected from proposed buys</small>
+              </span>
+              <strong>{dollars(reserveCents)}</strong>
+            </div>
+            <div className={styles.controlSetting}>
+              <span>
+                Minimum trade<small>Keep small moves out of the plan</small>
+              </span>
+              <strong>$100</strong>
+            </div>
+            <div className={styles.controlSetting}>
+              <span>
+                Allow taxable sales<small>You choose when to include them</small>
+              </span>
+              <span className={styles.staticToggle} role="img" aria-label="Taxable sales disabled">
+                <i />
+              </span>
+            </div>
+            <div className={styles.controlVisualFoot}>
+              <ShieldCheck size={15} />
+              Whole shares. No margin. No account transfers.
+            </div>
+          </div>
+          <div className={styles.controlsCopy}>
+            <span className={styles.eyebrow}>03 / ALWAYS IN YOUR HANDS</span>
+            <h2>
+              Your money.
+              <br />
+              <em>Your ground rules.</em>
             </h2>
-            <p>A portfolio-wide percentage should never hide an account-level constraint.</p>
-            <Link href="/demo">
-              See the planner in action <ArrowUpRight size={17} />
+            <p>
+              Set the direction. We’ll make the details visible. From the cash you keep aside to the
+              trades you’re comfortable considering.
+            </p>
+            <div className={styles.controlList}>
+              <article>
+                <ShieldCheck size={21} />
+                <div>
+                  <h3>See the assumptions.</h3>
+                  <p>
+                    Targets, reserves, tax treatment, and classifications belong to you. Incomplete
+                    or stale data pauses the plan.
+                  </p>
+                </div>
+              </article>
+              <article>
+                <Fingerprint size={21} />
+                <div>
+                  <h3>Keep control of your data.</h3>
+                  <p>
+                    Read-only access, encrypted credentials and financial data, and clear controls
+                    to delete saved plans or disconnect.
+                  </p>
+                </div>
+              </article>
+              <article>
+                <Bookmark size={21} />
+                <div>
+                  <h3>Keep the context, too.</h3>
+                  <p>
+                    Saved plans preserve the original snapshot and policy. Historical records stay
+                    clearly separate from a current simulation.
+                  </p>
+                </div>
+              </article>
+            </div>
+            <Link className={styles.inlineLink} href="/privacy">
+              How we handle your data <ArrowUpRight size={16} />
             </Link>
           </div>
-          <div className={styles.controlList}>
-            <article>
-              <Check size={18} />
-              <div>
-                <h3>Cash stays in its own account.</h3>
-                <p>
-                  A surplus at one brokerage cannot silently fund a purchase at another. The funding
-                  ledger makes every proposed move traceable.
-                </p>
-              </div>
-            </article>
-            <article>
-              <Check size={18} />
-              <div>
-                <h3>Taxable sales are your choice.</h3>
-                <p>
-                  They start disabled. You can opt in, with a clear reminder that Balance does not
-                  calculate your tax liability.
-                </p>
-              </div>
-            </article>
-            <article>
-              <Check size={18} />
-              <div>
-                <h3>Incomplete data pauses the plan.</h3>
-                <p>
-                  Missing prices, stale snapshots, unsupported instruments, and mixed currencies are
-                  surfaced before recommendations are made.
-                </p>
-              </div>
-            </article>
-            <article>
-              <Check size={18} />
-              <div>
-                <h3>Saved plans keep their context.</h3>
-                <p>
-                  A saved plan is a dated record of a simulation, with its targets and assumptions.
-                  It is never presented as an executable order.
-                </p>
-              </div>
-            </article>
-          </div>
         </section>
-        <section className={styles.faq}>
-          <div className={styles.sectionIntro}>
-            <span className={styles.eyebrow}>A FEW GOOD QUESTIONS</span>
-            <h2>
-              Know what you’re
-              <br />
-              connecting to.
-            </h2>
-          </div>
+
+        <section className={styles.faq} id="questions">
           <div>
-            <details>
-              <summary>Do I need a SnapTrade account?</summary>
-              <p>
-                Yes. You sign in with SnapTrade Personal and grant Balance read access to accounts
-                you manage there. You can add or reconnect brokerages in your SnapTrade dashboard,
-                then return to Balance and reload your snapshot.
-              </p>
-            </details>
-            <details>
-              <summary>Will Balance place trades or move my money?</summary>
-              <p>
-                No. Balance requests read access and creates a simulation. It never submits an order
-                or transfers cash. You decide whether to act in your own brokerage.
-              </p>
-            </details>
-            <details>
-              <summary>What portfolios can I plan with?</summary>
-              <p>
-                The current planner supports USD stocks and ETFs in accounts with complete, recent
-                data. You can classify unfamiliar holdings. It buys only eligible securities already
-                held in each account and may leave cash or drift when your constraints prevent a
-                closer match.
-              </p>
-            </details>
-            <details>
-              <summary>What should I know about the estimates?</summary>
-              <p>
-                Prices come from brokerage snapshots and may be delayed. The planner uses a bounded
-                heuristic. Fees, taxes, spreads, settlement, and FX are not modeled, and the
-                mathematically best allocation is not guaranteed.
-              </p>
-            </details>
-            <details>
-              <summary>How do I control my data?</summary>
-              <p>
-                OAuth tokens and saved financial payloads are encrypted on the server. You can
-                remove saved plans, delete your saved workspace data, and disconnect SnapTrade
-                inside the app. <Link href="/privacy">Read how your data is handled.</Link>
-              </p>
-            </details>
+            <span className={styles.eyebrow}>04 / THE DETAILS MATTER</span>
+            <h2>
+              Good questions.
+              <br />
+              <em>Clear answers.</em>
+            </h2>
+            <p>Something else on your mind?</p>
+            <Link className={styles.inlineLink} href="/support">
+              Visit support <ArrowUpRight size={16} />
+            </Link>
+          </div>
+          <div className={styles.faqList}>
+            {questions.map((question) => (
+              <details key={question.title}>
+                <summary>
+                  {question.title}
+                  <ChevronDown size={19} />
+                </summary>
+                <div>{question.text}</div>
+              </details>
+            ))}
           </div>
         </section>
+
         <section className={styles.finalCta}>
-          <span className={styles.eyebrow}>A CLEARER HEAD FOR YOUR WHOLE PORTFOLIO</span>
+          <span className={styles.eyebrow}>A CLEARER PICTURE STARTS HERE</span>
           <h2>
-            Make your next move
+            Your next move.
             <br />
-            with perspective.
+            <em>In perspective.</em>
           </h2>
+          <p>
+            Explore the sample. Adjust your targets. See the possibilities.
+            <br className={styles.desktopBreak} /> Your next move is always yours.
+          </p>
           <div className={styles.actions}>
-            <Link className={styles.primary} href="/app">
-              Connect your portfolio <ArrowRight size={17} />
+            <Link className={styles.primary} href="/demo">
+              Try the interactive demo <ArrowRight size={18} />
             </Link>
-            <Link className={styles.secondary} href="/demo">
-              Explore sample portfolio <ArrowUpRight size={16} />
+            <Link className={styles.secondary} href="/app">
+              Open beta workspace <ArrowUpRight size={17} />
             </Link>
           </div>
-          <p>Try the sample workspace before sharing any account data.</p>
+          <span className={styles.finalNote}>
+            No sign-in needed for the demo. Connected beta availability is limited.
+          </span>
+          <div className={styles.ctaArt} aria-hidden="true">
+            <MoveUpRight strokeWidth={0.6} />
+          </div>
         </section>
       </main>
       <footer className={styles.footer}>
-        <Link className={styles.logo} href="/">
-          balance.
-        </Link>
-        <span>A thoughtful plan. A little more clarity.</span>
-        <div>
-          <Link href="/privacy">Privacy & data</Link>
-          <a
-            href="https://github.com/meetgojiya98/SnapTrade/issues"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Report an issue <ArrowUpRight size={13} />
-          </a>
-          <a href="https://github.com/meetgojiya98/SnapTrade" target="_blank" rel="noreferrer">
-            Source <ArrowUpRight size={13} />
-          </a>
+        <div className={styles.footerTop}>
+          <div>
+            <Link className={styles.logo} href="/" aria-label="Balance home">
+              <span aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              balance.
+            </Link>
+            <p>A clear head for your whole portfolio.</p>
+          </div>
+          <nav aria-label="Footer navigation">
+            <Link href="/guide">Guide</Link>
+            <Link href="/support">Support</Link>
+            <Link href="/privacy">Privacy & data</Link>
+            <a href="https://github.com/meetgojiya98/SnapTrade" target="_blank" rel="noreferrer">
+              Source <ArrowUpRight size={14} />
+            </a>
+          </nav>
+        </div>
+        <div className={styles.footerBottom}>
+          <span>Balance · An independent portfolio planning tool.</span>
+          <p>
+            Simulations only. No orders or transfers. Prices may be delayed; fees, taxes, spreads,
+            settlement, and FX are not modeled.
+          </p>
         </div>
       </footer>
     </div>

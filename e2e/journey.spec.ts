@@ -55,8 +55,12 @@ test('private workspace loading, failure, and sign-in recovery never display sam
   });
   await page.route('**/api/portfolio', (route) =>
     route.fulfill({
-      status: 502,
-      json: { code: 'upstream_unavailable', error: 'The brokerage service is unavailable.' },
+      status: 503,
+      json: {
+        code: 'service_unavailable',
+        error: 'The brokerage service is unavailable.',
+        requestId: '00000000-0000-4000-8000-000000000001',
+      },
     }),
   );
   await page.goto('/app');
@@ -68,13 +72,39 @@ test('private workspace loading, failure, and sign-in recovery never display sam
     page.getByRole('heading', { name: 'Your portfolio couldn’t be loaded.', exact: true }),
   ).toBeVisible();
   await expect(page.getByText('Sample workspace', { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Reference: 00000000-0000-4000-8000-000000000001' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Open support for this error in a new tab', exact: true }),
+  ).toHaveAttribute('href', '/support');
+  await expect(
+    page.getByRole('link', { name: 'Open support for this error in a new tab', exact: true }),
+  ).toHaveAttribute('target', '_blank');
+  await page.route('**/api/portfolio', (route) =>
+    route.fulfill({
+      status: 503,
+      json: {
+        code: 'service_unavailable',
+        error: 'The brokerage service is unavailable.',
+        requestId: 'account 12345 balance 9000',
+      },
+    }),
+  );
+  const failedRetry = page.waitForResponse('**/api/portfolio');
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  await failedRetry;
+  await expect(
+    page.getByRole('heading', { name: 'Your portfolio couldn’t be loaded.', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'The brokerage service is unavailable.' }),
+  ).not.toContainText('Reference:');
+  await expect(page.getByText('account 12345 balance 9000', { exact: false })).toHaveCount(0);
   await page.route('**/api/portfolio', (route) =>
     route.fulfill({
       status: 401,
-      json: {
-        code: 'reconnect_required',
-        error: 'Your SnapTrade session has ended. Connect again to continue.',
-      },
+      json: null,
     }),
   );
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
@@ -108,6 +138,10 @@ test('signed-out visitors get a direct consent path with no developer configurat
   await expect(page.getByText(/Create a Commercial workspace|Configure your backend/)).toHaveCount(
     0,
   );
+  const checklist = page.getByRole('list', { name: 'Before you connect', exact: true });
+  await expect(checklist).toContainText('SnapTrade Personal');
+  await expect(checklist).toContainText('CIBC');
+  await expect(page.getByText(/up to 5 connected users/)).toBeVisible();
   expect(forbiddenRequests).toEqual([]);
 });
 
@@ -200,6 +234,22 @@ for (const mode of ['demo', 'live'] as const) {
     await page
       .getByRole('spinbutton', { name: 'Cash reserve per account', exact: true })
       .fill('2000');
+    if (mode === 'live') {
+      const leaving = page.waitForEvent('dialog').then(async (confirmation) => {
+        expect(confirmation.type()).toBe('beforeunload');
+        await confirmation.dismiss();
+      });
+      await Promise.all([
+        leaving,
+        page.getByRole('link', { name: 'Balance home', exact: true }).click(),
+      ]);
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'Find your balance.', exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('spinbutton', { name: 'Cash reserve per account', exact: true }),
+      ).toHaveValue('2000');
+    }
     await page.getByRole('button', { name: 'Save workspace preferences', exact: true }).click();
     if (server)
       await expect.poll(() => server.getWorkspace().preferences.reserveCents).toBe(200_000);

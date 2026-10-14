@@ -100,11 +100,15 @@ The planner buys only classified eligible securities already held in each accoun
 
 SnapTrade account data is read with Bearer authentication through `/accounts/all`, `/authorizations`, account positions, and balances. Account fan-out is bounded and more than 100 returned accounts is rejected. A successful API response does not establish freshness or a healthy connection. Rate limits and incomplete records remain recoverable issues. See the official [account-data](https://docs.snaptrade.com/docs/account-data), [freshness](https://docs.snaptrade.com/docs/syncing), and [OAuth](https://docs.snaptrade.com/docs/oauth-apps) documentation.
 
+Upstream JSON reads enforce a two-million-byte limit while consuming the response stream, even when `Content-Length` is absent or incorrect. Oversized and rejected response bodies are cancelled. The ten-second upstream timeout also covers body consumption; a body that aborts mid-stream produces a safe timeout rather than leaking source details.
+
 ## Security and data lifecycle
 
 Authorization uses code flow with PKCE `S256`, browser-bound state, and an OIDC nonce. `jose` verifies ID-token signature, issuer, audience, expiry, and nonce against discovered signing keys. The app requests `openid read`; it does not request email or trading access.
 
 Production Postgres stores encrypted login state, sessions, preferences, plans, and cached financial data using `SESSION_ENCRYPTION_KEY`. Login attempts expire after ten minutes and app sessions after seven days. Refresh-token replacement is serialized under the session row lock across instances. Login state is consumed atomically; a failed authenticated API call can refresh/retry once before requiring authorization again. In-memory adapters are explicit development conveniences and disappear on restart.
+
+A retried `401` invalidates credentials only if the rejected access token still matches the current session under that lock. A delayed rejection from an older rotation cannot delete a newer healthy session. Concurrent disconnects remain final; the rejected request cannot restore credentials. Transient failures include a random support reference and log only a bounded service classification and status.
 
 Deleting a plan removes that historical record. Deleting workspace data removes saved preferences and all plans, invalidates cached snapshots, and retains a non-financial hashed-owner generation marker for race protection. It leaves the SnapTrade connection active. Disconnect attempts remote revocation and deletes local credentials; saved preferences/history remain available after fresh authorization by the same subject. Failed revocation produces a recovery instruction to remove the app in SnapTrade Personal.
 
@@ -112,7 +116,7 @@ Keep the encryption key stable across deploys; replacing it makes existing ciphe
 
 ## Verification boundaries
 
-Local verification covers 184 unit/integration tests and 10 migration tests, including disposable real Postgres checks, and 36 Chromium tests. Browser tests exercise simulated connected responses, historical provenance, persistence, recovery, mobile layout, and axe WCAG A/AA checks. These checks establish the implemented contracts within their test environments.
+Local verification covers 195 unit/integration tests and 10 migration tests, including disposable real Postgres checks, and 38 Chromium tests. Browser tests exercise simulated connected responses, historical provenance, persistence, recovery, mobile layout, public/help journeys, support hydration, and axe WCAG A/AA checks. These checks establish the implemented contracts within their test environments.
 
 Real consent, cancellation, Sandbox account reads, encrypted production persistence, historical export, disconnect, and restoration after redeployment/reauthorization were verified on October 14, 2026. The cash-only Sandbox saved a zero-trade snapshot; default Sandbox crypto and mutual-fund holdings correctly blocked planning. Nonzero stock/ETF moves and forced failures use controlled tests. Real-money brokerage accounts and isolation between two external Personal users were not exercised; cross-user isolation is covered by real Postgres integration tests. See the [dated evidence](submission.md#deployment-verification-status).
 

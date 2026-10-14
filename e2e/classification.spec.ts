@@ -123,7 +123,10 @@ for (const issue of ['missing price', 'stale snapshot'] as const) {
     await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toHaveCount(0);
     if (issue === 'stale snapshot') {
       portfolio.accounts[0].syncedAt = new Date().toISOString();
-      await navigateWorkspace(page, 'Connections');
+      await page.getByRole('button', { name: 'Review account data', exact: true }).click();
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'A more connected portfolio.', exact: true }),
+      ).toBeVisible();
       const reloaded = page.waitForResponse('**/api/portfolio');
       await page.getByRole('button', { name: 'Reload snapshots', exact: true }).click();
       await reloaded;

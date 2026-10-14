@@ -1,6 +1,6 @@
 # Deployment and SnapTrade submission
 
-BALANCE v2 implements the full product path: public explanation, explicit sample entry, private connection/loading states, reviewed workspace preferences, an account-funded simulation, and immutable saved history. Real SnapTrade OAuth and production persistence were verified with simulated Sandbox accounts on October 14, 2026. This guide records that evidence and the remaining public-launch requirements.
+BALANCE implements the full product path: a calculation-backed public landing page, explicit interactive demo, guided connection setup, reviewed workspace preferences, an account-funded simulation, immutable saved history, and practical help and recovery. Real SnapTrade OAuth and production persistence were verified with simulated Sandbox accounts on October 14, 2026. This guide records that evidence and the remaining public-launch requirements.
 
 ## 1. Register OAuth and a Personal test user
 
@@ -70,7 +70,7 @@ Keep credentials out of `NEXT_PUBLIC_*`, source control, and logs. Preserve the 
 
 ## 4. Run automated verification
 
-Recorded local verification on October 14, 2026: **184 unit/integration tests and 10 migration tests**, including disposable real Postgres checks, plus **36 Chromium browser tests** with axe accessibility checks.
+Recorded local verification on October 14, 2026: **195 unit/integration tests and 10 migration tests**, including disposable real Postgres checks, plus **38 Chromium browser tests** with axe accessibility checks.
 
 ```sh
 npm run typecheck
@@ -129,6 +129,18 @@ After the public OAuth and persistence checks pass, use the [Product Engineer ap
 Suggested project description:
 
 > BALANCE is a read-only portfolio planning workspace for investors with USD stocks and ETFs across brokerage accounts. It turns personal allocation targets into whole-share, account-funded simulations, preserves user-reviewed assumptions, and saves immutable historical plans with their original data. Taxable sales require explicit permission, incomplete data pauses recommendations, and every result exposes its funding and remaining drift. The model excludes execution, fees, taxes, settlement, FX, and a guarantee of global optimality.
+
+## Operating the beta and preparing a wider launch
+
+Use `/api/health` for process liveness and `/api/status` for database/schema readiness. A healthy process does not prove that the database or SnapTrade is available. Public pages and the sample workspace remain independent of private service availability.
+
+API failures include a random `requestId` in the JSON response and `X-Request-Id` header. The workspace displays validated references with its error message. Transient service failures and rate limits emit structured `balance.request.failed` log records containing only the reference, bounded service code, and status. Do not add raw errors, URL queries, request bodies, token claims, account IDs, or financial payloads to those records. `/support` prepares a public issue draft from the category and validated reference; the customer reviews and submits it themselves.
+
+For an incident, correlate a reported reference with Vercel runtime logs, check readiness, and identify whether the failure is in the app, database, or upstream connection. Keep account data out of public issues. A service outage should produce a retry path, never a fabricated successful plan. If a release introduces a regression, inspect the intended project and roll back to a previously verified deployment; keep the same encryption key and database. No automatic rollback or alerting service is configured by this repository.
+
+Keep the encryption key stable. A database backup contains encrypted payloads and cannot recover them without the matching key. Before retaining real customer financial records, establish an operator-controlled secret recovery process, verify the database provider's restore window, and rehearse recovery in an isolated environment. Recovery from a production database backup has not yet been exercised. Never point the disposable test suites at production or rotate a key without a migration/recovery plan.
+
+Before wider connected access, finish SnapTrade production approval, register production credentials and the intended consent branding, verify supported real brokerage accounts and a second external Personal identity, and establish a private customer-support channel, operational alerts, and reviewed company policies. The current public issue tracker is suitable for non-sensitive beta bug reports; it is not a private financial support channel. Pricing, billing, and a legal company identity are not invented by this application.
 
 ## Deployment verification status
 

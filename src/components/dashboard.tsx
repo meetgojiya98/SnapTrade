@@ -45,7 +45,15 @@ import {
   writeDemoWorkspace,
   demoStorageKey,
 } from './demo-workspace';
-import { Dialog, WorkspaceGate, WorkspaceLoading } from './workspace-ui';
+import {
+  AccountRecovery,
+  ConnectionChecklist,
+  Dialog,
+  PlanningRecovery,
+  WorkspaceGate,
+  WorkspaceHelpLinks,
+  WorkspaceLoading,
+} from './workspace-ui';
 import { SavedPlans, SavedPlanDetail, downloadPlan } from './saved-plans';
 import ClassificationEditor from './classification-editor';
 import CashProof from './cash-proof';
@@ -57,15 +65,15 @@ type Modal =
   'connect' | 'targets' | 'method' | 'classify' | 'save' | 'delete-plan' | 'delete-data' | null;
 type Status = { configured: boolean; connected: boolean; requirements: string[] };
 const classes: Record<AssetClass, { name: string; short: string; color: string; tint: string }> = {
-  'us-equity': { name: 'US equities', short: 'US', color: '#176c50', tint: '#eaf2ee' },
+  'us-equity': { name: 'US equities', short: 'US', color: '#214c38', tint: '#eaf1e6' },
   international: {
     name: 'International equities',
     short: 'INTL',
-    color: '#94b39b',
-    tint: '#eff3ec',
+    color: '#9fc97d',
+    tint: '#eff5e8',
   },
-  bonds: { name: 'Bonds', short: 'BOND', color: '#d5b77b', tint: '#f6f0e4' },
-  unclassified: { name: 'Unclassified', short: 'OTHER', color: '#989da3', tint: '#f0f1f3' },
+  bonds: { name: 'Bonds', short: 'BOND', color: '#c4d6ae', tint: '#f0f4eb' },
+  unclassified: { name: 'Unclassified', short: 'OTHER', color: '#89958b', tint: '#f0f2ef' },
 };
 const money = (cents: number, currency = 'USD', digits = 0) =>
   Number.isFinite(cents) && /^[A-Z]{3}$/.test(currency)
@@ -135,14 +143,24 @@ class WorkspaceRequestError extends Error {
 }
 async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', ...init });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok)
+  const parsed: unknown = await response.json().catch(() => null);
+  const body =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  if (!response.ok) {
+    const requestId =
+      typeof body.requestId === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId)
+        ? body.requestId
+        : '';
     throw new WorkspaceRequestError(
-      body.error || 'The request could not be completed. Please try again.',
+      `${typeof body.error === 'string' ? body.error : 'The request could not be completed. Please try again.'}${requestId ? ` Reference: ${requestId}` : ''}`,
       response.status,
-      body.code,
+      typeof body.code === 'string' ? body.code : '',
     );
-  return body as T;
+  }
+  return parsed as T;
 }
 const blankPortfolio = (): Portfolio => ({ mode: 'live', asOf: '', accounts: [], warnings: [] });
 
@@ -416,6 +434,15 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
     }, 7000);
     return () => clearTimeout(timer);
   }, [notice]);
+  useEffect(() => {
+    if (mode !== 'live' || !onboarded || !preferencesDirty) return;
+    const protectPreferences = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', protectPreferences);
+    return () => window.removeEventListener('beforeunload', protectPreferences);
+  }, [mode, onboarded, preferencesDirty]);
 
   const accounts = useMemo(
     () => portfolio.accounts.filter((a) => !selected.length || selected.includes(a.id)),
@@ -897,6 +924,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
             <CircleHelp size={18} />
             Methodology & help
           </button>
+          <WorkspaceHelpLinks section="review" />
           <div className="powered">
             <span className="snaptrade-mark">↗</span>
             <span>
@@ -965,6 +993,14 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
             <div className="banner error-banner" role="alert">
               <CircleHelp size={17} />
               <span>{error}</span>
+              <a
+                href="/support"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open support for this error in a new tab"
+              >
+                Get help <ExternalLink size={13} aria-hidden="true" />
+              </a>
               {mode === 'live' && gate === 'ready' && (
                 <button onClick={() => void loadLive()}>
                   Retry <RefreshCw size={13} />
@@ -1000,12 +1036,12 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
                 <div>
                   <div className="eyebrow">
                     {view === 'portfolio'
-                      ? 'THE BIG PICTURE'
+                      ? '01 / THE BIG PICTURE'
                       : view === 'rebalance'
-                        ? 'MAKE YOUR NEXT MOVE INTENTIONAL'
+                        ? '02 / MAKE YOUR NEXT MOVE INTENTIONAL'
                         : view === 'plans'
-                          ? 'DECISIONS WORTH KEEPING'
-                          : 'YOUR ACCOUNTS, TOGETHER'}
+                          ? '03 / DECISIONS WORTH KEEPING'
+                          : '04 / YOUR ACCOUNTS, TOGETHER'}
                   </div>
                   <h1>
                     {view === 'portfolio'
@@ -1870,44 +1906,66 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
                         </div>
                       </div>
                       {currentPlan.status === 'blocked' ? (
-                        <div className="blocker-list" role="status">
-                          {currentPlan.blockers.map((b, i) => (
-                            <div key={i}>
-                              <ShieldCheck size={19} />
-                              <span>{b}</span>
-                            </div>
-                          ))}
-                          <div className="blocker-actions">
-                            {canClassify && (
-                              <button
-                                className="button secondary small-button"
-                                onClick={() => setModal('classify')}
-                              >
-                                Review classifications
-                              </button>
-                            )}
-                            {mode === 'live' && (
-                              <>
+                        <>
+                          <PlanningRecovery
+                            accounts={accounts}
+                            now={valuationTime}
+                            mode={mode}
+                            policyNeedsReview={
+                              (mode === 'live' && !onboarded) ||
+                              currentPlan.blockers.some((blocker) =>
+                                /targets|cash reserve|contribution|minimum trade/i.test(blocker),
+                              )
+                            }
+                            onClassify={() => setModal('classify')}
+                            onReviewAccounts={() => navigate('connections')}
+                            onReviewSettings={() => {
+                              document
+                                .querySelector<HTMLInputElement>(
+                                  '[aria-label="Cash reserve per account"]',
+                                )
+                                ?.focus();
+                            }}
+                          />
+                          <div className="blocker-list" role="status">
+                            {currentPlan.blockers.map((b, i) => (
+                              <div key={i}>
+                                <ShieldCheck size={19} />
+                                <span>{b}</span>
+                              </div>
+                            ))}
+                            <div className="blocker-actions">
+                              {canClassify && (
                                 <button
                                   className="button secondary small-button"
-                                  disabled={loading}
-                                  onClick={() => void loadLive()}
+                                  onClick={() => setModal('classify')}
                                 >
-                                  <RefreshCw size={14} />
-                                  Reload snapshots
+                                  Review classifications
                                 </button>
-                                <a
-                                  className="text-button"
-                                  href="https://dashboard.snaptrade.com"
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  Manage brokerage connection <ArrowUpRight size={14} />
-                                </a>
-                              </>
-                            )}
+                              )}
+                              {mode === 'live' && (
+                                <>
+                                  <button
+                                    className="button secondary small-button"
+                                    disabled={loading}
+                                    onClick={() => void loadLive()}
+                                  >
+                                    <RefreshCw size={14} />
+                                    Reload snapshots
+                                  </button>
+                                  <a
+                                    className="text-button"
+                                    href="https://dashboard.snaptrade.com"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Manage brokerage connection <ArrowUpRight size={14} />
+                                  </a>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        </>
                       ) : currentPlan.trades.length === 0 ? (
                         <div className="empty-state">
                           <CheckCheck size={30} />
@@ -2163,6 +2221,24 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
                             {issue}
                           </p>
                         ))}
+                        <AccountRecovery
+                          account={a}
+                          now={valuationTime}
+                          mode={mode}
+                          loading={loading}
+                          canUseOthers={portfolio.accounts.length > 1}
+                          onClassify={() => setModal('classify')}
+                          onReload={() => void loadLive()}
+                          onUseOthers={() => {
+                            setSelected(
+                              portfolio.accounts
+                                .filter((account) => account.id !== a.id)
+                                .map((account) => account.id),
+                            );
+                            navigate('rebalance');
+                            setNotice('This simulation now uses your other accounts.');
+                          }}
+                        />
                       </section>
                     ))}
                   </div>
@@ -2231,6 +2307,22 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
                 </label>
               )}
               <a href="/privacy">Privacy</a>
+              <a
+                href="/guide#methodology"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open the guide in a new tab"
+              >
+                Guide <ExternalLink size={12} aria-hidden="true" />
+              </a>
+              <a
+                href="/support"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open support in a new tab"
+              >
+                Support <ExternalLink size={12} aria-hidden="true" />
+              </a>
               <button onClick={() => setModal('method')}>
                 Methodology <ArrowUpRight size={12} />
               </button>
@@ -2286,6 +2378,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
             Connect through SnapTrade to bring your brokerage accounts into one thoughtful
             workspace.
           </p>
+          {(mode === 'demo' || !status.connected) && <ConnectionChecklist />}
           <ul className="check-list">
             <li>
               <ShieldCheck size={18} />
@@ -2352,6 +2445,7 @@ export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
           <button className="dialog-secondary" onClick={() => setModal(null)}>
             Back to workspace
           </button>
+          <WorkspaceHelpLinks />
         </Dialog>
       )}
       {modal === 'targets' && (

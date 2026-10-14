@@ -1,0 +1,239 @@
+.page {
+  min-height: 100vh;
+  background: #f8f9f6;
+  color: #172b23;
+  overflow: clip;
+}
+.page * {
+  min-width: 0;
+}
+.page ::selection {
+  background: #d5f479;
+  color: #172b23;
+}
+.page :is(a, button, input, select, [tabindex='0']):focus-visible {
+  outline: 3px solid #63853e;
+  outline-offset: 5px;
+}
+.header {
+  max-width: 1280px;
+  min-height: 94px;
+  padding: 0 40px;
+  margin: auto;
+  display: flex;
+  gap: 30px;
+  align-items: center;
+  border-bottom: 1px solid #dee4da;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font:
+    800 29px Manrope,
+    sans-serif;
+  letter-spacing: -1.7px;
+  flex-shrink: 0;
+}
+.mark {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #214c38;
+}
+.mark i {
+  display: block;
+  width: 4px;
+  height: 13px;
+  background: #d5f479;
+  border-radius: 2px;
+  transform: rotate(20deg);
+}
+.mark i:nth-child(2) {
+  height: 21px;
+}
+.mark i:nth-child(3) {
+  height: 16px;
+}
+.header nav {
+  margin-left: auto;
+  display: flex;
+  gap: 27px;
+  font-size: 12px;
+  color: #4b5951;
+}
+.header nav a {
+  padding: 15px 0;
+  position: relative;
+  transition: color 0.2s;
+}
+.header nav a:hover {
+  color: #172b23;
+}
+.header nav a[aria-current='page'] {
+  color: #172b23;
+  font-weight: 700;
+}
+.header nav a[aria-current='page']::after {
+  content: '';
+  height: 3px;
+  border-radius: 2px;
+  background: #7f9c42;
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  right: 0;
+}
+.header nav a:hover,
+.footer a:hover {
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+.workspace {
+  border: 1px solid #cbd3c7;
+  background: transparent;
+  border-radius: 8px;
+  padding: 11px 16px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+.workspace:hover {
+  background: #ecf1e7;
+  border-color: #a6b49e;
+}
+.main {
+  max-width: 1280px !important;
+  padding: 70px 40px 100px !important;
+  margin: auto !important;
+  outline: none;
+}
+.footer {
+  border-top: 1px solid #dee4da;
+  max-width: 1200px;
+  margin: auto;
+  padding: 37px 0 35px;
+  display: flex;
+  align-items: center;
+  gap: 25px;
+}
+.footerIdentity {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.footer .brand {
+  font-size: 26px;
+}
+.footer p {
+  font-size: 11px;
+  line-height: 1.7;
+  color: #59675f;
+}
+.footer nav {
+  display: flex;
+  gap: 22px;
+  margin-left: auto;
+  font-size: 12px;
+}
+.footerNote {
+  color: #59675f;
+  font-size: 10px;
+  padding-left: 21px;
+  border-left: 1px solid #dee4da;
+}
+@media (max-width: 1050px) {
+  .header {
+    gap: 22px;
+  }
+  .header nav {
+    gap: 19px;
+  }
+  .footer {
+    margin: 0 40px;
+    flex-wrap: wrap;
+  }
+  .footerNote {
+    display: none;
+  }
+}
+@media (max-width: 800px) {
+  .header {
+    padding: 20px 24px 0;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .header nav {
+    order: 3;
+    width: 100%;
+    margin: 0;
+    gap: 25px;
+  }
+  .header nav a {
+    padding: 13px 0 17px;
+  }
+  .workspace {
+    margin-left: auto;
+  }
+  .main {
+    padding: 40px 24px 70px !important;
+  }
+  .footer {
+    margin: 0 24px;
+    padding: 28px 0;
+  }
+  .footer nav {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 520px) {
+  .header {
+    padding: 20px 20px 0;
+  }
+  .brand {
+    font-size: 25px;
+  }
+  .workspace {
+    font-size: 11px;
+    gap: 11px;
+    padding: 10px 12px;
+  }
+  .header nav {
+    justify-content: space-between;
+    gap: 14px;
+    font-size: 11px;
+  }
+  .main {
+    padding: 32px 20px 55px !important;
+  }
+  .footer {
+    margin: 0 20px;
+  }
+  .footerIdentity {
+    gap: 22px;
+  }
+  .footer nav {
+    justify-content: space-between;
+    gap: 15px;
+    font-size: 11px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
