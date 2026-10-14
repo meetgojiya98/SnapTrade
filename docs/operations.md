@@ -34,6 +34,8 @@ If a release causes a regression, promote a previously verified **balance-snaptr
 
 External monitoring uses Checkly, configured separately from application deployments. The account's trial automatically falls back to the $0 Hobby plan; do not upgrade or enable paid overages without approval. Keep checks within its hard caps: one public URL monitor, an anonymous readiness check every ten minutes, and the [public browser journey](../monitoring/README.md) every two hours, with round-robin regions and at most one retry. Subscribe the owner's approved channel to failure and recovery. Verify actual delivery and record it in the release evidence before relying on alerts. Manual checks and CI are not continuous monitoring. Monitor readiness separately from liveness, tolerating cold starts. Authenticated monitoring needs a dedicated authorized test identity, never a customer's cookie; no private brokerage or support data is sent to Checkly.
 
+Failure and recovery email delivery were both verified on October 14, 2026 with a controlled readiness-monitor assertion, then the original HTTP 200 / JSON `configured: true` contract was restored. The monitor returned to passing. The [dated release evidence](submission.md#private-support-and-operations-release--october-14-2026) records exact times and boundaries. Repeat this drill when changing alert destinations or escalation settings; label it clearly, restore the normal assertion in the same session, and verify recovery before finishing.
+
 ## Migrations
 
 The runtime role has CRUD rights to application tables and no schema, database, or role creation. Administrative direct connections are used only for migrations/grants, never production runtime configuration.
