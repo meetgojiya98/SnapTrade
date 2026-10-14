@@ -55,7 +55,8 @@ export default function PrivacyPage() {
             <li>
               <ShieldCheck size={17} aria-hidden="true" />
               <div>
-                Clear deletion controls<small>Delete plans or saved workspace data.</small>
+                Clear deletion controls
+                <small>Delete plans, workspace data, or support requests.</small>
               </div>
             </li>
           </ul>
@@ -70,6 +71,7 @@ export default function PrivacyPage() {
           <a href="#shared">What you share</a>
           <a href="#stored">What is stored</a>
           <a href="#sessions">Sessions & saved plans</a>
+          <a href="#support">Private support</a>
           <a href="#controls">Your controls</a>
           <a href="#services">Service providers</a>
           <a href="#questions">Questions & problems</a>
@@ -115,7 +117,8 @@ export default function PrivacyPage() {
               In your workspace, you can delete individual saved plans or delete all saved workspace
               data. Deleting workspace data removes saved targets, confirmations, and plans.
               Disconnecting SnapTrade attempts to revoke the OAuth grant and deletes the local
-              connection credentials; it does not silently delete your saved plans.
+              connection credentials; it does not silently delete your saved plans or support
+              conversations. Support has its own deletion controls.
             </p>
             <p>
               If SnapTrade cannot confirm revocation, Balance shows a recovery message directing you
@@ -124,28 +127,53 @@ export default function PrivacyPage() {
               data.
             </p>
             <p>
-              Deletion removes the active saved workspace records. The database provider may retain
-              encrypted historical copies within its configured restore window. Balance does not
-              selectively purge individual records from that recovery history.
+              Deletion removes active records from the selected area. The database provider may
+              retain encrypted historical copies within its configured restore window. Balance does
+              not selectively purge individual records from that recovery history.
+            </p>
+          </section>
+          <section className={styles.section} id="support">
+            <h2>Private support conversations</h2>
+            <p>
+              When you send a private support request, Balance stores its category, title, messages,
+              optional error reference, and conversation status against your verified SnapTrade
+              identity. Conversation content is encrypted in the database. Only you and explicitly
+              authorized Balance support operators can read it through the application. It is never
+              published to GitHub or sent by email automatically.
+            </p>
+            <p>
+              Share only what is needed to explain the problem. Do not include passwords, OAuth
+              credentials, full account numbers, or documents. Attachments are not supported. Drafts
+              stay in the current page’s memory; Balance does not save them in browser storage.
+            </p>
+            <p>
+              You can delete one conversation or all your support requests in{' '}
+              <Link href="/support/inbox">your private inbox</Link>. Deleting saved workspace data
+              or disconnecting does not delete support records. Reconnect with the same SnapTrade
+              identity to access them again. Conversations expire 180 days after their last
+              activity; expired conversations are hidden and removed during bounded cleanup when
+              support is used. Minimal hashed deletion markers can remain for up to 180 days to
+              prevent a delayed retry from restoring a deleted conversation. A non-content identity
+              generation marker remains to protect deletion against requests already in flight.
             </p>
           </section>
           <section className={styles.section} id="services">
             <h2>Services that process data</h2>
             <p>
               SnapTrade provides authorization and brokerage data. Vercel hosts the application. The
-              production database provider, Neon, stores encrypted sessions and workspace data.
-              These services process requests needed to operate the app. Infrastructure logs may
-              include request metadata such as network addresses; Balance does not intentionally log
-              holdings, authorization codes, tokens, or client secrets.
+              production database provider, Neon, stores encrypted sessions, workspace data, and
+              support conversations. These services process requests needed to operate the app.
+              Infrastructure logs may include request metadata such as network addresses; Balance
+              does not intentionally log holdings, authorization codes, tokens, or client secrets.
             </p>
           </section>
           <section className={styles.section} id="questions">
             <h2>Questions and problems</h2>
             <p>
-              Visit <Link href="/support">Help & support</Link> for recovery guidance and a safe
-              issue draft. Include the request reference shown with an app error when available.
-              Keep account numbers, holdings, credentials, and other private information out of
-              public issue reports.
+              Visit <Link href="/support">Help & support</Link> for recovery guidance or open{' '}
+              <Link href="/support/inbox">your private support inbox</Link>. Include the request
+              reference shown with an app error when available. Public GitHub reports are an
+              optional channel for non-sensitive bugs; keep private information out of them.
             </p>
           </section>
           <Link className={styles.secondary} href="/">

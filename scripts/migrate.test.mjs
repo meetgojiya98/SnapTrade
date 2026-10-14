@@ -143,13 +143,21 @@ describe('migration runner on disposable Postgres', { skip: !databaseUrl }, () =
         '001_sessions.sql',
         '002_product.sql',
         '003_portfolio_cache.sql',
+        '004_support.sql',
       ]);
       assert.deepEqual(await applyMigrations(sql, files), []);
       const [row] = await sql`SELECT count(*)::int AS count FROM balance_schema_migrations`;
-      assert.equal(row.count, 3);
+      assert.equal(row.count, 4);
       const [tables] =
-        await sql`SELECT to_regclass('balance_sessions') AS sessions, to_regclass('balance_workspaces') AS workspaces, to_regclass('balance_portfolio_cache') AS cache`;
-      assert.ok(tables.sessions && tables.workspaces && tables.cache);
+        await sql`SELECT to_regclass('balance_sessions') AS sessions, to_regclass('balance_workspaces') AS workspaces, to_regclass('balance_portfolio_cache') AS cache, to_regclass('balance_support_threads') AS support, to_regclass('balance_support_actors') AS support_actors, to_regclass('balance_support_deleted_requests') AS support_deleted`;
+      assert.ok(
+        tables.sessions &&
+          tables.workspaces &&
+          tables.cache &&
+          tables.support &&
+          tables.support_actors &&
+          tables.support_deleted,
+      );
     });
   });
   it('rolls back the whole pending batch and ledger when any migration fails', async () => {

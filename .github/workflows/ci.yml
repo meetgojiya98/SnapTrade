@@ -36,6 +36,32 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:migrations
+      - name: Select PostgreSQL recovery client tools
+        shell: bash
+        run: |
+          task_pg_bin=''
+          for task_pg_candidate in /usr/lib/postgresql/*/bin; do
+            if [[ ! -x "$task_pg_candidate/pg_dump" || ! -x "$task_pg_candidate/pg_restore" ]]; then
+              continue
+            fi
+            task_pg_version="$("$task_pg_candidate/pg_dump" --version)"
+            if [[ "$task_pg_version" =~ PostgreSQL\)\ ([0-9]+) ]] && (( BASH_REMATCH[1] >= 17 )); then
+              task_pg_bin="$task_pg_candidate"
+              break
+            fi
+          done
+          if [[ -z "$task_pg_bin" ]]; then
+            # GitHub's Ubuntu images configure the official PostgreSQL Apt repository.
+            # Their default client may be older than the PostgreSQL 17 service.
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends postgresql-client-17
+            task_pg_bin='/usr/lib/postgresql/17/bin'
+          fi
+          printf '%s\n' "$task_pg_bin" >> "$GITHUB_PATH"
+          "$task_pg_bin/pg_dump" --version
+          "$task_pg_bin/pg_restore" --version
+      - name: Rehearse isolated encrypted database recovery
+        run: npm run test:recovery
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e

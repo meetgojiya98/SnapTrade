@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const privateApi = /\/api\/(?:status|portfolio|workspace|plans)(?:[/?]|$)/;
+const privateApi = /\/api\/(?:status|portfolio|workspace|plans|support)(?:[/?]|$)/;
 
 async function withinViewport(page: Page) {
   await expect

@@ -6,7 +6,7 @@ test('the public entry makes sample data an explicit choice and the demo never c
 }) => {
   const privateRequests: string[] = [];
   page.on('request', (request) => {
-    if (/\/api\/(?:status|portfolio|workspace|plans)(?:[/?]|$)/.test(request.url()))
+    if (/\/api\/(?:status|portfolio|workspace|plans|support)(?:[/?]|$)/.test(request.url()))
       privateRequests.push(request.url());
   });
   await page.goto('/');

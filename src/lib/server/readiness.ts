@@ -37,4 +37,13 @@ export async function assertRuntimeSchema(sql: Sql) {
       balance_plans p, balance_workspace_generations g, balance_portfolio_cache c
     LIMIT 0
   `;
+  await sql`
+    SELECT a.actor_hash, a.generation, a.window_start, a.create_count, a.write_count,
+      t.id, t.owner_hash, t.create_key_hash, t.payload, t.summary_payload,
+      t.status, t.created_at, t.updated_at, t.expires_at,
+      d.owner_hash, d.create_key_hash, d.expires_at
+    FROM balance_support_actors a, balance_support_threads t,
+      balance_support_deleted_requests d
+    LIMIT 0
+  `;
 }

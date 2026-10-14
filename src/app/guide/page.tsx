@@ -89,6 +89,7 @@ export default function GuidePage() {
           <a href="#history">4. Save and return</a>
           <a href="#methodology">The calculation</a>
           <a href="#troubleshooting">When a plan pauses</a>
+          <a href="#support">Get private support</a>
         </nav>
         <div>
           <section className={styles.section} id="connect">
@@ -299,6 +300,22 @@ export default function GuidePage() {
             <Link className={styles.secondary} href="/support">
               Find more help <ArrowRight size={16} />
             </Link>
+          </section>
+          <section className={styles.section} id="support">
+            <h2>A conversation that stays private.</h2>
+            <p>
+              If the recovery steps do not resolve the problem, open{' '}
+              <Link href="/support/inbox">your private support inbox</Link> using the same SnapTrade
+              sign-in as your workspace. Choose a category, describe what happened, and include the
+              error’s request reference when available. No portfolio data is attached automatically.
+            </p>
+            <p>
+              Return to the inbox to read replies and continue the conversation. There are no email
+              notifications or guaranteed response times during the beta. You can resolve a request,
+              reopen it if the problem returns, or delete it. Support conversations have separate
+              deletion controls from saved plans and workspace preferences.{' '}
+              <Link href="/privacy#support">Read the support data policy.</Link>
+            </p>
           </section>
         </div>
       </div>

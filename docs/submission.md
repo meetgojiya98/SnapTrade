@@ -42,7 +42,7 @@ SESSION_STORE=memory
 
 A populated `DATABASE_URL` takes precedence over `SESSION_STORE=memory`. To explore locally without Postgres, leave the database URL empty and explicitly use the memory setting. The sample `/demo` works without OAuth credentials. Memory-backed connected sessions, preferences, and plans disappear when the server restarts and cannot establish durable persistence.
 
-For database-backed use, apply **all three migrations in order** through a provider SQL editor or a migration connection:
+For database-backed use, apply **all checked-in migrations in order** through a provider SQL editor or a migration connection:
 
 ```sh
 node --env-file=.env.local scripts/migrate.mjs
@@ -50,7 +50,7 @@ node --env-file=.env.local scripts/migrate.mjs
 
 The runner applies the checked-in SQL in one transaction, records SHA-256 checksums, and serializes concurrent runs. Repeating it is safe; changing or removing an applied migration fails before any pending migration commits. It prefers `MIGRATION_DATABASE_URL`, then `DATABASE_URL_UNPOOLED`, then `DATABASE_URL`.
 
-They create sessions/login attempts, workspace policies/plan history/deletion generations, and the portfolio snapshot cache. The runtime role needs `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on those tables. The application does not automatically run migrations.
+They create sessions/login attempts, workspace policies/plan history/deletion generations, the portfolio snapshot cache, and encrypted support conversations with retry/deletion protection. The runtime role needs `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on those tables. New tables need explicit grants for the restricted runtime role. The application does not automatically run migrations.
 
 ```sh
 npm run dev
@@ -60,17 +60,18 @@ Open the exact `APP_URL` origin, then `/app` to sign in or `/demo` to explore. R
 
 ## 3. Deploy the connected application
 
-1. Provision hosted Postgres using the provider's required TLS settings and apply the three migrations above.
+1. Provision hosted Postgres using the provider's required TLS settings and apply all migrations above.
 2. Link the repository to the `balance-snaptrade` Vercel project, or another compatible Node hosting environment. Configure Node.js 22, `npm ci`, and `npm run build` from the repository root.
 3. Set `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CLIENT_SECRET`, `SESSION_ENCRYPTION_KEY`, `DATABASE_URL`, and `APP_URL` as server environment variables. For the existing public domain, use `APP_URL=https://balance-snaptrade.vercel.app` with no trailing slash. Production requires Postgres; the memory adapter is never a production option.
 4. Register the exact HTTPS callback and redeploy after changing credentials, origin, or database configuration.
 5. Open `/api/health` (process liveness), `/api/status` (configuration and complete database schema readiness), `/`, `/demo`, `/privacy`, and `/app` on the deployed domain, then complete the release checks below.
+6. Verify the intended support operator's authenticated setup key, configure server-only `SUPPORT_ADMIN_SUBJECT_HASHES`, redeploy, and test `/support/inbox`. Without an operator, new requests remain disabled. Follow the [operations runbook](operations.md) for the access grant and deletion/retention contract.
 
 Keep credentials out of `NEXT_PUBLIC_*`, source control, and logs. Preserve the encryption key across deployments: sessions, policies, saved snapshots, and cached financial payloads depend on it. Separate production and preview databases/keys when they represent different environments. Use a migration role for table creation and a restricted runtime role for normal application access.
 
 ## 4. Run automated verification
 
-Recorded local verification on October 14, 2026: **195 unit/integration tests and 10 migration tests**, including disposable real Postgres checks, plus **38 Chromium browser tests** with axe accessibility checks.
+Recorded local verification on October 14, 2026: **226 unit/integration tests and 10 migration tests**, including disposable real Postgres checks, plus **43 Chromium browser tests** with axe accessibility checks.
 
 ```sh
 npm run typecheck
@@ -88,6 +89,14 @@ TEST_DATABASE_URL=postgresql://127.0.0.1:5432/balance_test_product npm test
 ```
 
 Without that environment value, the database-specific suites skip. They reject remote hosts and other database names to keep integration-test mutations away from live data. CI provisions Postgres and runs type checking, tests, build, and Chromium verification.
+
+The explicit logical recovery drill passed two checks with synthetic encrypted sessions, policy, saved plans, cache, support messages, and deletion markers. It uses fresh loopback databases and a disposable key:
+
+```sh
+TEST_DATABASE_URL=postgresql://127.0.0.1:5432/balance_test_product npm run test:recovery
+```
+
+It requires compatible `pg_dump` and `pg_restore` tools and a local role allowed to create disposable databases. It verifies restored ciphertext, same-key reads, ownership isolation, and wrong-key rejection; it is not evidence of Neon point-in-time restore or recovery of the production encryption key.
 
 Browser tests start or reuse `http://127.0.0.1:3001`. `PLAYWRIGHT_BASE_URL` can target an existing instance. They cover sample isolation, explicit policy saves, immutable historical prices and constraints, session/error gates, empty-account recovery, history retry, deletion, mobile layout, and automated WCAG A/AA checks. Connected browser journeys use controlled API responses; they do not authorize a real SnapTrade user. `CAPTURE_SCREENSHOTS=1` refreshes `docs/images/portfolio.png` and `rebalance.png`.
 
@@ -134,13 +143,13 @@ Suggested project description:
 
 Use `/api/health` for process liveness and `/api/status` for database/schema readiness. A healthy process does not prove that the database or SnapTrade is available. Public pages and the sample workspace remain independent of private service availability.
 
-API failures include a random `requestId` in the JSON response and `X-Request-Id` header. The workspace displays validated references with its error message. Transient service failures and rate limits emit structured `balance.request.failed` log records containing only the reference, bounded service code, and status. Do not add raw errors, URL queries, request bodies, token claims, account IDs, or financial payloads to those records. `/support` prepares a public issue draft from the category and validated reference; the customer reviews and submits it themselves.
+API failures include a random `requestId` in the JSON response and `X-Request-Id` header. The workspace displays validated references with its error message. Transient service failures and rate limits emit structured `balance.request.failed` log records containing only the reference, bounded service code, and status. Do not add raw errors, URL queries, request bodies, token claims, account IDs, financial payloads, or support messages to those records. `/support/inbox` keeps authenticated private conversations inside Balance. `/support` also offers an optional public draft for non-sensitive bugs; the customer reviews and submits it themselves.
 
 For an incident, correlate a reported reference with Vercel runtime logs, check readiness, and identify whether the failure is in the app, database, or upstream connection. Keep account data out of public issues. A service outage should produce a retry path, never a fabricated successful plan. If a release introduces a regression, inspect the intended project and roll back to a previously verified deployment; keep the same encryption key and database. No automatic rollback or alerting service is configured by this repository.
 
-Keep the encryption key stable. A database backup contains encrypted payloads and cannot recover them without the matching key. Before retaining real customer financial records, establish an operator-controlled secret recovery process, verify the database provider's restore window, and rehearse recovery in an isolated environment. Recovery from a production database backup has not yet been exercised. Never point the disposable test suites at production or rotate a key without a migration/recovery plan.
+Keep the encryption key stable. A database backup cannot recover encrypted payloads without the matching key. The dedicated Neon project reported a 24-hour restore window on October 14, 2026. The local logical restore drill uses synthetic data and a disposable key; recovery of production data with its original encryption key has not been rehearsed. Before retaining real customer financial records, establish operator-controlled recovery of that key and exercise provider restore in an isolated environment. Never point disposable tests at production or rotate the key without a migration/recovery plan. See [operations](operations.md).
 
-Before wider connected access, finish SnapTrade production approval, register production credentials and the intended consent branding, verify supported real brokerage accounts and a second external Personal identity, and establish a private customer-support channel, operational alerts, and reviewed company policies. The current public issue tracker is suitable for non-sensitive beta bug reports; it is not a private financial support channel. Pricing, billing, and a legal company identity are not invented by this application.
+Before wider connected access, finish SnapTrade production approval, register production credentials and intended consent branding, verify supported real brokerage accounts and a second external Personal identity, establish operational alerts and production key recovery, and review company policies. Private support is implemented with an explicit operator allowlist; it has no email notifications or guaranteed response time during the beta. Pricing, billing, and a legal company identity are not invented by this application.
 
 ## Deployment verification status
 

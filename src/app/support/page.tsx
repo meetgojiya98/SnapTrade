@@ -16,7 +16,7 @@ import styles from '../resources.module.css';
 export const metadata: Metadata = {
   title: 'Help & support — Balance',
   description:
-    'Resolve connection, portfolio, saved-plan, and privacy questions. Prepare a safe issue report without sharing financial data.',
+    'Resolve common Balance questions, open private in-app support, or prepare a non-sensitive public product issue.',
   alternates: { canonical: '/support' },
 };
 
@@ -30,10 +30,13 @@ export default function SupportPage() {
           </span>
           <h1>A clear next step, when you need one.</h1>
           <p>
-            Start with the guidance below. If something still looks wrong, prepare a report with the
-            error’s request reference and keep your financial information private.
+            Start with the guidance below. For a personal product question, open a private support
+            conversation. Use the public issue draft for non-sensitive bugs and feedback.
           </p>
           <div className={styles.actions}>
+            <Link href="/support/inbox" className={styles.primary}>
+              Open private support <ArrowRight size={16} />
+            </Link>
             <Link href="/guide" className={styles.secondary}>
               Read the getting-started guide <ArrowRight size={16} />
             </Link>
@@ -49,8 +52,8 @@ export default function SupportPage() {
             <br />A better next step.
           </h2>
           <p>
-            Find the relevant guidance below, or use an error’s request reference to prepare a
-            useful report.
+            Find the relevant guidance below, or include an error’s request reference in a private
+            conversation. Sign in with your Balance identity to view replies.
           </p>
           <div className={styles.referencePreview} aria-hidden="true">
             <span>REQUEST REFERENCE</span>

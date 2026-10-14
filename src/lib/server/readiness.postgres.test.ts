@@ -30,7 +30,7 @@ describe.skipIf(!databaseUrl)('complete database readiness (Postgres integration
     await admin`DROP SCHEMA ${admin(schema)} CASCADE`;
     await admin.end();
   });
-  it('rejects absent product/cache migrations and accepts the complete schema', async () => {
+  it('rejects absent product/cache/support migrations and missing runtime columns', async () => {
     await expect(assertRuntimeSchema(isolated)).rejects.toThrow();
     for (const file of ['001_sessions.sql', '002_product.sql'])
       await isolated.unsafe(
@@ -43,8 +43,15 @@ describe.skipIf(!databaseUrl)('complete database readiness (Postgres integration
         'utf8',
       ),
     );
+    await expect(assertRuntimeSchema(isolated)).rejects.toThrow();
+    await isolated.unsafe(
+      await readFile(new URL('../../../migrations/004_support.sql', import.meta.url), 'utf8'),
+    );
     await expect(assertRuntimeSchema(isolated)).resolves.toBeUndefined();
     await isolated`ALTER TABLE balance_portfolio_cache DROP COLUMN generation`;
+    await expect(assertRuntimeSchema(isolated)).rejects.toThrow();
+    await isolated`ALTER TABLE balance_portfolio_cache ADD COLUMN generation integer NOT NULL DEFAULT 0`;
+    await isolated`ALTER TABLE balance_support_threads DROP COLUMN summary_payload`;
     await expect(assertRuntimeSchema(isolated)).rejects.toThrow();
   });
 });

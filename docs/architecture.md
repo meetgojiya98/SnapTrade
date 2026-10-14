@@ -28,21 +28,28 @@ normalized portfolio + preferences → pure planner → account-funded simulatio
 
 The Next.js server owns OAuth exchanges and SnapTrade API requests. The browser receives display data and an opaque HttpOnly session cookie, never OAuth tokens or the client secret.
 
-| Endpoint                 | Contract                                                                              |
-| ------------------------ | ------------------------------------------------------------------------------------- |
-| `GET /api/auth/login`    | Begin authorization with state, nonce, and PKCE.                                      |
-| `GET /api/auth/callback` | Verify authorization and establish a session; return to `/app`.                       |
-| `POST /api/auth/logout`  | Attempt token revocation and delete local credentials.                                |
-| `GET /api/status`        | Environment readiness and whether this browser has an app session.                    |
-| `GET /api/portfolio`     | Authenticated normalized portfolio, using the short server cache.                     |
-| `GET /api/workspace`     | Saved policy for the verified subject, or defaults for a first visit.                 |
-| `PUT /api/workspace`     | Validate and explicitly save `{ preferences }`.                                       |
-| `DELETE /api/workspace`  | Delete saved preferences and plan history.                                            |
-| `GET /api/plans`         | Historical summaries for this subject.                                                |
-| `GET /api/plans?id=UUID` | One complete historical snapshot belonging to this subject.                           |
-| `POST /api/plans`        | Validate scenario inputs, reload source data, recalculate, and save a named snapshot. |
-| `DELETE /api/plans/UUID` | Delete an owned saved plan.                                                           |
-| `GET /api/health`        | Minimal uncached service liveness.                                                    |
+| Endpoint                          | Contract                                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------- |
+| `GET /api/auth/login`             | Begin authorization with state, nonce, and PKCE.                                      |
+| `GET /api/auth/callback`          | Verify authorization and establish a session; return to `/app`.                       |
+| `POST /api/auth/logout`           | Attempt token revocation and delete local credentials.                                |
+| `GET /api/status`                 | Environment readiness and whether this browser has an app session.                    |
+| `GET /api/portfolio`              | Authenticated normalized portfolio, using the short server cache.                     |
+| `GET /api/workspace`              | Saved policy for the verified subject, or defaults for a first visit.                 |
+| `PUT /api/workspace`              | Validate and explicitly save `{ preferences }`.                                       |
+| `DELETE /api/workspace`           | Delete saved preferences and plan history.                                            |
+| `GET /api/plans`                  | Historical summaries for this subject.                                                |
+| `GET /api/plans?id=UUID`          | One complete historical snapshot belonging to this subject.                           |
+| `POST /api/plans`                 | Validate scenario inputs, reload source data, recalculate, and save a named snapshot. |
+| `DELETE /api/plans/UUID`          | Delete an owned saved plan.                                                           |
+| `GET /api/health`                 | Minimal uncached service liveness.                                                    |
+| `GET /api/support`                | Owned private summaries; `scope=all` requires an explicitly allowlisted operator.     |
+| `POST /api/support`               | Create an encrypted conversation with an idempotency UUID and transactional limits.   |
+| `GET /api/support/UUID`           | Owned conversation; operators can also read customer requests.                        |
+| `POST /api/support/UUID/messages` | Append a bounded, idempotent customer or operator reply.                              |
+| `PATCH /api/support/UUID`         | Resolve or reopen an accessible conversation.                                         |
+| `DELETE /api/support/UUID`        | Delete an owned conversation; operators cannot delete another customer's request.     |
+| `DELETE /api/support`             | Delete all conversations owned by the authenticated customer.                         |
 
 Private responses use `Cache-Control: no-store`. Mutations require the configured origin; workspace and plan mutations also reject cross-site Fetch Metadata and require bounded JSON input. Data ownership comes from the verified session subject, never a client-supplied user ID. An unknown owned plan returns 404 rather than exposing another user's record.
 
@@ -114,12 +121,20 @@ Deleting a plan removes that historical record. Deleting workspace data removes 
 
 Keep the encryption key stable across deploys; replacing it makes existing ciphertext unreadable. Never put credentials in `NEXT_PUBLIC_*`, browser storage, or logs. Apply all migrations before database-backed use. The [privacy page](https://balance-snaptrade.vercel.app/privacy) describes the user-facing controls.
 
+## Private support
+
+Support reuses the existing verified SnapTrade identity and encrypted Postgres storage. It does not introduce a second identity provider, public ticket bodies, attachments, or email delivery. `/support/inbox` is excluded from indexing. The server checks operator privilege on every request using `SUPPORT_ADMIN_SUBJECT_HASHES`; missing or malformed configuration denies operator access and disables new conversations.
+
+Both conversation payloads and list summaries are encrypted with distinct owner/record AAD. Lists paginate summaries without loading transcripts. Ownership filters run before decryption. Customer records expose only the display fields needed by the inbox; raw subjects, OAuth credentials, internal request keys, and operator allowlists are not returned. An authenticated viewer can see their own hashed setup key for deliberate operator configuration; it is never accepted as proof of identity.
+
+Create/reply retries are idempotent per actor and request UUID. Changed payloads with a reused key are rejected. Transactional actor locks enforce rate limits and conversation caps across application instances; row locks serialize replies/status updates. A deletion generation and bounded creation-key tombstones prevent in-flight or retried creates from recreating deleted conversations. Separate support deletion leaves workspace preferences/plans and the brokerage connection intact. Retention, operator grants, limits, and incident handling are described in [operations](operations.md).
+
 ## Verification boundaries
 
-Local verification covers 195 unit/integration tests and 10 migration tests, including disposable real Postgres checks, and 38 Chromium tests. Browser tests exercise simulated connected responses, historical provenance, persistence, recovery, mobile layout, public/help journeys, support hydration, and axe WCAG A/AA checks. These checks establish the implemented contracts within their test environments.
+Local verification covers 226 unit/integration tests and 10 migration tests, including disposable real Postgres checks, and 43 Chromium tests. Browser tests exercise simulated connected responses, historical provenance, persistence, recovery, mobile layout, public/help journeys, support hydration, and axe WCAG A/AA checks. These checks establish the implemented contracts within their test environments.
 
 Real consent, cancellation, Sandbox account reads, encrypted production persistence, historical export, disconnect, and restoration after redeployment/reauthorization were verified on October 14, 2026. The cash-only Sandbox saved a zero-trade snapshot; default Sandbox crypto and mutual-fund holdings correctly blocked planning. Nonzero stock/ETF moves and forced failures use controlled tests. Real-money brokerage accounts and isolation between two external Personal users were not exercised; cross-user isolation is covered by real Postgres integration tests. See the [dated evidence](submission.md#deployment-verification-status).
 
-The deployed database is a dedicated Neon project on the existing Launch installation, with 0.25 CU compute and five-minute idle suspension. The runtime role has CRUD access to the six application tables and no schema-creation, role-creation, or database-creation permission. Administrative connection variables are excluded from the deployed environment. `/api/status` checks the complete runtime schema even for signed-out visitors; `/api/health` is process liveness.
+The deployed database is a dedicated Neon project on the existing Launch installation, with 0.25 CU compute and five-minute idle suspension. The runtime role has CRUD access to the nine application tables and no schema-creation, role-creation, or database-creation permission. Administrative connection variables are excluded from the deployed environment. `/api/status` checks the complete runtime schema even for signed-out visitors; `/api/health` is process liveness.
 
 Test OAuth remains limited to five users until SnapTrade production approval and Production app registration. Fees, taxes, settlement, execution, FX, margin, and investment outcomes remain outside this simulator's contract.

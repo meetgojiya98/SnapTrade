@@ -17,7 +17,8 @@ Built for the [SnapTrade Product Engineer application](https://careers.snaptrade
 - **`/demo`** is an explicit sample workspace. It uses fixed illustrative data, saves sample preferences and plans in this browser, and makes no private API requests.
 - **`/privacy`** explains storage, retention, deletion, and disconnect behavior.
 - **`/guide`** walks through connection setup, portfolio review, account funding, drift, and historical plans.
-- **`/support`** provides specific recovery paths and a privacy-conscious GitHub issue draft. It never submits a report automatically.
+- **`/support`** provides recovery guidance and an optional public GitHub issue draft for non-sensitive bugs.
+- **`/support/inbox`** provides encrypted private conversations, customer deletion controls, and a restricted operator queue. New requests require a configured operator.
 
 The public site includes an interactive, calculation-backed allocation preview and a per-account funding example. Both use the same fictional portfolio as the demo. Connected-beta prerequisites and the current consent registration name are explained before authorization.
 
@@ -41,7 +42,7 @@ Open [localhost:3000](http://localhost:3000), then choose the sample workspace. 
 
 For connected accounts, register an OAuth app under **Commercial workspace → OAuth Apps** in the [SnapTrade Dashboard](https://dashboard.snaptrade.com). Set `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CLIENT_SECRET`, `SESSION_ENCRYPTION_KEY`, and `APP_URL` in `.env.local`. These must be OAuth app credentials, rather than a Commercial API `clientId`/`consumerKey` pair. Register `APP_URL` plus `/api/auth/callback` exactly. A separate Personal workspace supplies the accounts authorizing access.
 
-Generate the encryption key with `openssl rand -base64 32`. Production requires a Postgres `DATABASE_URL` and all three SQL migrations, applied in order. Local development can explicitly use `SESSION_STORE=memory` with no database; its server data disappears on restart. See the [setup guide](docs/submission.md) for exact configuration and verification steps.
+Generate the encryption key with `openssl rand -base64 32`. Production requires a Postgres `DATABASE_URL` and all SQL migrations, applied in order. Local development can explicitly use `SESSION_STORE=memory` with no database; its server data disappears on restart. Configure support operators only after verifying their identity; see the [operations runbook](docs/operations.md). See the [setup guide](docs/submission.md) for exact configuration and verification steps.
 
 ## Scope and boundaries
 
@@ -51,7 +52,7 @@ The planner buys only eligible securities already held in each selected account.
 
 ## Verification
 
-Local verification on October 14, 2026: **195 unit/integration tests and 10 migration tests**, including real disposable PostgreSQL checks, and **38 Chromium browser tests**. Browser coverage includes onboarding, persistence, historical provenance, failure recovery, public/help journeys, support hydration, mobile layout, and automated WCAG A/AA checks using axe.
+Local verification on October 14, 2026: **226 unit/integration tests and 10 migration tests**, including real disposable PostgreSQL checks, and **43 Chromium browser tests**. Browser coverage includes onboarding, persistence, historical provenance, failure recovery, public/help journeys, support hydration, mobile layout, and automated WCAG A/AA checks using axe.
 
 ```sh
 npm run typecheck
@@ -63,6 +64,14 @@ npm run test:e2e
 ```
 
 Postgres tests require `TEST_DATABASE_URL` pointing to a disposable loopback database named `balance_test…`; otherwise those checks skip. GitHub Actions provisions that database and runs the full verification workflow. Browser tests use port 3001 and controlled API fixtures for connected flows. Set `CAPTURE_SCREENSHOTS=1` to refresh the sample screenshots.
+
+A separate logical recovery drill passed **two checks** using synthetic encrypted records, including support conversations. It creates and destroys its own loopback databases, needs compatible `pg_dump`/`pg_restore` tools and a local role allowed to create databases, and never dumps an existing database:
+
+```sh
+TEST_DATABASE_URL=postgresql://127.0.0.1:5432/balance_test_product npm run test:recovery
+```
+
+This verifies logical restoration and key dependence. Production key recovery and Neon point-in-time restoration still require a separate rehearsal; see [operations](docs/operations.md).
 
 **Verified against the deployed app with real SnapTrade OAuth and simulated Sandbox accounts:** consent and cancellation, account reads, encrypted preferences and plan history, immutable historical policy/CSV, disconnect, and recovery after redeployment and reauthorization. See the [dated release evidence](docs/submission.md#deployment-verification-status).
 

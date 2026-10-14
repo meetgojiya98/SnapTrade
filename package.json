@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "db:migrate": "node scripts/migrate.mjs",
-    "test:migrations": "node --test scripts/migrate.test.mjs"
+    "test:migrations": "node --test scripts/migrate.test.mjs",
+    "test:recovery": "vitest run --config scripts/recovery.config.mts"
   },
   "dependencies": {
     "jose": "6.1.3",
