@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { configurationRequirements } from '@/lib/server/config';
 import { reconnectError, ServiceError } from '@/lib/server/errors';
-import { loadPortfolio } from '@/lib/server/portfolio';
+import { getCachedPortfolio } from '@/lib/server/portfolio-cache';
 import {
   cookieNames,
   errorResponse,
@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
   const id = sessionId(request);
   if (!id) return errorResponse(reconnectError());
   try {
-    return NextResponse.json(await loadPortfolio(id), { headers: PRIVATE_HEADERS });
+    const { portfolio, cache } = await getCachedPortfolio(id);
+    return NextResponse.json(portfolio, {
+      headers: { ...PRIVATE_HEADERS, 'X-Snapshot-Cache': cache },
+    });
   } catch (error) {
     const response = errorResponse(error);
     if (response.status === 401) setPrivateCookie(response, cookieNames().session, '', 0);

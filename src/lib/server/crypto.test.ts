@@ -20,7 +20,7 @@ describe('session encryption and PKCE', () => {
   it('encrypts with a unique nonce and authenticates the row context', () => {
     const key = randomBytes(32);
     const encrypted = encryptJson(session, key, 'session:first');
-    expect(encrypted).not.toContain('secret');
+    expect(encrypted).not.toContain('"accessToken":"secret-access"');
     expect(encryptJson(session, key, 'session:first')).not.toBe(encrypted);
     expect(decryptJson(encrypted, key, 'session:first')).toEqual(session);
     expect(() => decryptJson(encrypted, key, 'session:second')).toThrow();

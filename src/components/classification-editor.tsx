@@ -104,8 +104,8 @@ export default function ClassificationEditor({
         Use my classifications <Check size={16} />
       </button>
       <p className="inline-note">
-        Your choices stay in this browser session. Reloading the page clears them. Leave an asset
-        unverified if it does not fit these categories.
+        Save workspace preferences after applying these choices to keep them. Leave an asset
+        unverified if it does not fit these categories; you can still inspect it in your portfolio.
       </p>
     </>
   );

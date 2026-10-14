@@ -59,7 +59,7 @@ export function homeRedirect(request: NextRequest, error?: string): NextResponse
   } catch {
     /* Configuration failure has no configured destination. */
   }
-  const url = new URL('/', origin);
+  const url = new URL('/app', origin);
   if (error) url.searchParams.set('error', error);
   return NextResponse.redirect(url, { status: 303, headers: PRIVATE_HEADERS });
 }

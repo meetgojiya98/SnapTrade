@@ -31,7 +31,12 @@ export default function CashProof({
         </div>
         <ShieldCheck size={21} className="muted-icon" />
       </div>
-      <div className="table-scroll">
+      <div
+        className="table-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label="Account funding ledger, scroll horizontally to see all columns"
+      >
         <table aria-label="Account funding ledger">
           <thead>
             <tr>

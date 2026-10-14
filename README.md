@@ -2,99 +2,66 @@
 
 **A clearer way to rebalance a portfolio spread across brokerage accounts.**
 
-[Open the live demo](https://balance-snaptrade.vercel.app) · [Review the rebalance screen](docs/images/rebalance.png)
+[Public site](https://balance-snaptrade.vercel.app) · [Sample workspace](https://balance-snaptrade.vercel.app/demo) · [Architecture](docs/architecture.md) · [Deployment and verification](docs/submission.md)
 
-BALANCE connects to SnapTrade with read-only OAuth and turns a target allocation into an explainable, account-by-account simulation. It answers a practical question: “How close can I get to my allocation with the cash and whole shares I actually have?”
-
-The difficult part is respecting the boundaries real portfolios have. Cash belongs to a particular account. A taxable sale needs an explicit choice. Different currencies cannot be added without an exchange rate. Prices and connections can be stale. BALANCE makes those constraints visible alongside its result.
+BALANCE turns an investor’s target allocation into an explainable, account-funded rebalancing simulation. Cash stays with its own account, proposed trades use whole shares, and taxable sales require an explicit choice. Every result shows its remaining drift and funding assumptions.
 
 Built for the [SnapTrade Product Engineer application](https://careers.snaptrade.com/product-engineer).
 
-![Balance portfolio workspace](docs/images/portfolio.png)
+![Balance sample workspace](docs/images/portfolio.png)
 
-## Try it locally
+## Product walkthrough
+
+- **`/`** explains the product, supported portfolios, and data controls.
+- **`/app`** opens a private SnapTrade workspace. Sign-in, loading, expired-session, and unavailable-data states never substitute fictional holdings.
+- **`/demo`** is an explicit sample workspace. It uses fixed illustrative data, saves sample preferences and plans in this browser, and makes no private API requests.
+- **`/privacy`** explains storage, retention, deletion, and disconnect behavior.
+
+In a connected workspace, review your targets, cash reserve, asset classifications, and account tax treatment before saving your first policy. Save later changes explicitly. Preferences follow the verified SnapTrade identity across sessions; hypothetical contributions belong to individual scenarios.
+
+The planner shows proposed moves, before/after allocation, residual cash, and an account funding ledger. Save a named plan to preserve its original holdings, prices, source timestamps, policy, and result. Historical snapshots stay read-only when current prices or preferences change and have a separate historical CSV export. Connected workspaces support up to 30 saved plans; the sample workspace supports 25 local plans.
+
+Connect or repair brokerages through your **SnapTrade Personal dashboard**, then return to reload available snapshots. Balance requests `openid read` and never places orders or moves money.
+
+## Run locally
 
 Requires Node.js 22 and npm.
 
 ```sh
-npm install
+npm ci
 cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The sample portfolio lets you explore the simulator before configuring SnapTrade. Sample data is explicitly identified; it is separate from connected account data.
+Open [localhost:3000](http://localhost:3000), then choose the sample workspace. No SnapTrade credentials are needed for `/demo`.
 
-If port 3000 is occupied, use `npm run dev -- --port 3001`. For OAuth on that port, update `APP_URL` and register the matching callback in SnapTrade.
+For connected accounts, register an OAuth app under **Commercial workspace → OAuth Apps** in the [SnapTrade Dashboard](https://dashboard.snaptrade.com). Set `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CLIENT_SECRET`, `SESSION_ENCRYPTION_KEY`, and `APP_URL` in `.env.local`. These must be OAuth app credentials, rather than a Commercial API `clientId`/`consumerKey` pair. Register `APP_URL` plus `/api/auth/callback` exactly. A separate Personal workspace supplies the accounts authorizing access.
 
-To connect real or SnapTrade Sandbox accounts, configure the OAuth credentials and session encryption key described below. OAuth setup, live account verification, and public deployment require your own SnapTrade workspace and hosting configuration.
+Generate the encryption key with `openssl rand -base64 32`. Production requires a Postgres `DATABASE_URL` and all three SQL migrations, applied in order. Local development can explicitly use `SESSION_STORE=memory` with no database; its server data disappears on restart. See the [setup guide](docs/submission.md) for exact configuration and verification steps.
 
-## What it does
+## Scope and boundaries
 
-- Combines account positions into an allocation view while keeping cash and proposed trades tied to their source account.
-- Models whole-share purchases and sales against editable allocation targets.
-- Keeps taxable sales disabled until you enable them.
-- Shows the allocation before and after the simulation, residual cash, and an account-level explanation of the proposed changes.
-- Keeps currencies separate; it does not invent FX conversions or move cash between accounts.
-- Uses SnapTrade for account data. It does not request trading permission or submit orders.
+Live planning supports USD stock and ETF accounts with complete, recent data. Unknown holdings and account tax treatment require user confirmation; saving those confirmations preserves them for subsequent visits. Missing prices, stale data, unsupported instruments, and inconsistent currencies continue to block planning.
 
-This is a planning tool. The planner is a deterministic heuristic, rather than a guarantee of the globally best allocation. Live planning supports USD accounts, with automatic classification for an explicit set of stocks and ETFs and a review step for other assets or unknown account tax treatment. User-confirmed categories clear on reload; incomplete data and unsupported instruments continue to block planning. Brokerage fees, realized taxes, settlement, margin, and execution prices are not modeled. See [the calculation and data boundaries](docs/architecture.md).
+The planner buys only eligible securities already held in each selected account. It is a bounded deterministic heuristic, with no guarantee of the mathematically best allocation. Fees, realized taxes, spreads, settlement, margin, FX conversion, and execution prices are outside the model. See the [calculation contract](docs/architecture.md).
 
-## Connect SnapTrade
+## Verification
 
-The application uses **SnapTrade OAuth**, rather than Commercial API-key authentication. The workspace that owns the OAuth app and the Personal workspace authorizing account access serve different purposes.
-
-1. Create a **Commercial** account/workspace in the [SnapTrade Dashboard](https://dashboard.snaptrade.com). Under **OAuth Apps**, register a **Test** app.
-2. Register this exact local redirect URI:
-
-   ```text
-   http://localhost:3000/api/auth/callback
-   ```
-
-3. Save the app's client ID and client secret in `.env.local` as `SNAPTRADE_CLIENT_ID` and `SNAPTRADE_CLIENT_SECRET`. The secret is shown once. These are OAuth app credentials, not a Commercial API `clientId`/`consumerKey` pair.
-4. Generate a session encryption key:
-
-   ```sh
-   openssl rand -base64 32
-   ```
-
-   Save the output as `SESSION_ENCRYPTION_KEY`. Keep `APP_URL=http://localhost:3000` for this callback.
-
-5. In a **Personal** SnapTrade account/workspace, connect a brokerage. For testing, choose SnapTrade **Sandbox** with its self-directed scenario. This is the user who will consent to BALANCE's access; creating the Commercial OAuth app does not create this brokerage connection.
-6. Restart the dev server after changing environment variables. Choose the app's SnapTrade connection action, sign in as the Personal test user, and grant the requested read access.
-
-SnapTrade Test OAuth apps allow up to five users. Production OAuth app registration requires SnapTrade's production approval. Follow the [official OAuth guide](https://docs.snaptrade.com/docs/oauth-apps) for the current setup and approval process, and the [Sandbox guide](https://docs.snaptrade.com/docs/sandbox) for test scenarios.
-
-For public hosting, register `https://YOUR_DOMAIN/api/auth/callback`, set `APP_URL` to that exact HTTPS origin, configure a Postgres `DATABASE_URL`, and apply `migrations/001_sessions.sql`. Development can explicitly use `SESSION_STORE=memory` with no database; production requires durable storage. Full instructions are in [deployment and submission](docs/submission.md).
-
-## Verify
-
-Validated locally on October 14, 2026: **97 unit and integration tests**, including a disposable real PostgreSQL database; **25 Chromium browser tests**; TypeScript; and the production build. The real SnapTrade consent flow remains pending credentials.
+Local verification on October 14, 2026: **178 unit/integration tests and 10 migration tests**, including real disposable PostgreSQL checks, and **33 Chromium browser tests**. Browser coverage includes onboarding, persistence, historical provenance, failure recovery, mobile layout, and automated WCAG A/AA checks using axe.
 
 ```sh
+npm run typecheck
 npm test
+npm run test:migrations
 npm run build
-```
-
-Run the Chromium browser checks with:
-
-```sh
 npx playwright install chromium
 npm run test:e2e
 ```
 
-The browser suite starts or reuses a development server at `http://127.0.0.1:3001`. `PLAYWRIGHT_BASE_URL` can target an already running instance. It exercises the sample experience and connection setup with a controlled status response; it does not perform real SnapTrade authorization.
+Postgres tests require `TEST_DATABASE_URL` pointing to a disposable loopback database named `balance_test…`; otherwise those checks skip. GitHub Actions provisions that database and runs the full verification workflow. Browser tests use port 3001 and controlled API fixtures for connected flows. Set `CAPTURE_SCREENSHOTS=1` to refresh the sample screenshots.
 
-GitHub Actions runs type checking, unit and disposable Postgres tests, a production build, and the Chromium suite on pushes and pull requests. Set `CAPTURE_SCREENSHOTS=1` when running the existing browser tests to save the portfolio and rebalance views under `docs/images/`.
-
-Automated verification covers the implemented planner and server behaviors exercised by the test suite. A production build checks compilation and application packaging. Neither proves that OAuth consent, a particular brokerage, or a deployed database works: run the [live verification walkthrough](docs/submission.md) with your configured environment before submitting the project.
-
-## Read further
-
-- [Architecture, calculation rules, and security](docs/architecture.md)
-- [Deployment, live verification, and reviewer walkthrough](docs/submission.md)
-- [SnapTrade's current OAuth documentation](https://docs.snaptrade.com/docs/oauth-apps)
-- [SnapTrade account-data concepts](https://docs.snaptrade.com/docs/account-data) and [data freshness](https://docs.snaptrade.com/docs/syncing)
+**Real SnapTrade OAuth authorization and deployed database persistence remain pending verification.** The public URL and successful automated checks do not establish those properties. Complete the [live release checks](docs/submission.md) before describing the connected product as verified.
 
 ## Stack
 
-Next.js with TypeScript, Node.js 22, and Postgres for encrypted production sessions. The portfolio planner is a pure calculation layer, separate from the SnapTrade integration and interface.
+Next.js, React, TypeScript, Node.js 22, and Postgres. OAuth credentials, workspace policies, saved financial snapshots, and the 45-second session snapshot cache are encrypted on the server. The pure planner is separate from the integration and interface.

@@ -198,6 +198,10 @@ export function normalizeAccount(
         `${symbol}: asset class is unverified. This holding cannot be included in a plan.`,
       );
     const positionId = text(instrument.id, `${id}:${index}`);
+    if (!text(instrument.id))
+      issues.push(
+        `${symbol}: stable instrument identity is unavailable. Refresh before creating a plan.`,
+      );
     if (ids.has(positionId))
       issues.push(
         `${symbol}: duplicate instrument data was returned. Refresh before creating a plan.`,

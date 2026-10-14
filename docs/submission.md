@@ -1,35 +1,35 @@
 # Deployment and SnapTrade submission
 
-The SnapTrade brief asks for a working, publicly hosted OAuth application and a project selected from a Commercial workspace. This repository provides the application. You must still register the OAuth app, configure its credentials, deploy it, and verify the live integration before representing it as ready for review.
+BALANCE v2 implements the full product path: public explanation, explicit sample entry, private connection/loading states, reviewed workspace preferences, an account-funded simulation, and immutable saved history. **Real SnapTrade authorization and deployed persistence are still pending verification.** This guide separates setup from the evidence required for release.
 
-## 1. Register the app and a test user
+## 1. Register OAuth and a Personal test user
 
-Create a Commercial account/workspace in the [SnapTrade Dashboard](https://dashboard.snaptrade.com). Select **OAuth Apps**, create a **Test** app, and save its client ID and client secret. The secret is shown only once. The application requests `openid read`; configure these scopes according to the [official OAuth guide](https://docs.snaptrade.com/docs/oauth-apps).
+In a **Commercial** [SnapTrade Dashboard](https://dashboard.snaptrade.com) workspace, open **OAuth Apps**, create a Test app, and save its client ID and client secret. A Commercial API `clientId`/`consumerKey` pair is a different credential type and will not configure this OAuth integration. The application requests `openid read`.
 
-Add these redirect URIs as needed:
+Register the callbacks you will actually use:
 
 ```text
 http://localhost:3000/api/auth/callback
-https://YOUR_DOMAIN/api/auth/callback
+https://balance-snaptrade.vercel.app/api/auth/callback
 ```
 
-Use the stable production domain for the deployed callback. A deployment preview URL only works if its exact callback is separately registered and its `APP_URL` matches. Avoid changing the registered URL on every preview build.
+Redirect matching includes scheme, host, port, path, and trailing slash. A preview URL requires its own registered callback and matching `APP_URL`; use a stable origin for the normal production flow.
 
-Separately, use a **Personal** SnapTrade account/workspace as the user consenting to data access. Connect SnapTrade **Sandbox** there and select the self-directed scenario to exercise funded accounts, holdings, and cash. The Commercial workspace owns the OAuth app; the Personal workspace owns the accounts shared with it. Both roles are needed even if the same person manages them.
+In a separate **Personal** workspace, connect a brokerage. For testing, use SnapTrade Sandbox's self-directed scenario. That Personal user signs in and authorizes Balance's access to their existing connections; the Commercial workspace owns the app. Customers manage additions and reconnects in SnapTrade Personal, then return to Balance to reload available data.
 
-Test OAuth apps are limited to five users. A Production OAuth app requires SnapTrade production approval. Sandbox is read-only and supports scenarios such as cash only, no transactions, and no accounts. See the [Sandbox documentation](https://docs.snaptrade.com/docs/sandbox).
+Test OAuth apps permit up to five users. Registering a Production OAuth app requires SnapTrade's production approval. Follow the current [OAuth guide](https://docs.snaptrade.com/docs/oauth-apps) and [Sandbox guide](https://docs.snaptrade.com/docs/sandbox) for account setup and approval requirements.
 
 ## 2. Configure local development
 
-Install Node.js 22, then run:
+Use Node.js 22:
 
 ```sh
-npm install
+npm ci
 cp .env.example .env.local
 openssl rand -base64 32
 ```
 
-Paste the generated key and OAuth credentials into `.env.local`:
+Set these values in `.env.local`:
 
 ```dotenv
 SNAPTRADE_CLIENT_ID=your-oauth-client-id
@@ -40,93 +40,98 @@ DATABASE_URL=your-postgres-connection-string
 SESSION_STORE=memory
 ```
 
-For local development without Postgres, leave `DATABASE_URL` empty and explicitly set `SESSION_STORE=memory`. If `DATABASE_URL` is populated, it takes precedence over the memory setting. Use Postgres locally when testing persistence. Apply `migrations/001_sessions.sql` through the provider's SQL editor or a direct migration connection before login; the application does not create its own tables. Keep `.env.local` out of version control. Restart the server after changing environment variables.
+A populated `DATABASE_URL` takes precedence over `SESSION_STORE=memory`. To explore locally without Postgres, leave the database URL empty and explicitly use the memory setting. The sample `/demo` works without OAuth credentials. Memory-backed connected sessions, preferences, and plans disappear when the server restarts and cannot establish durable persistence.
+
+For database-backed use, apply **all three migrations in order** through a provider SQL editor or a migration connection:
+
+```sh
+node --env-file=.env.local scripts/migrate.mjs
+```
+
+The runner applies the checked-in SQL in one transaction, records SHA-256 checksums, and serializes concurrent runs. Repeating it is safe; changing or removing an applied migration fails before any pending migration commits. It prefers `MIGRATION_DATABASE_URL`, then `DATABASE_URL_UNPOOLED`, then `DATABASE_URL`.
+
+They create sessions/login attempts, workspace policies/plan history/deletion generations, and the portfolio snapshot cache. The runtime role needs `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on those tables. The application does not automatically run migrations.
 
 ```sh
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), connect with SnapTrade, and authorize as the Personal user.
+Open the exact `APP_URL` origin, then `/app` to sign in or `/demo` to explore. Restart after changing environment values. If using port 3001, update both `APP_URL` and the registered callback to that port.
 
-## 3. Deploy publicly
+## 3. Deploy the connected application
 
-Vercel is one supported option named in the [application brief](https://careers.snaptrade.com/product-engineer). The app also needs a durable Postgres database; a free hosting tier does not remove that requirement.
+1. Provision hosted Postgres using the provider's required TLS settings and apply the three migrations above.
+2. Link the repository to the `balance-snaptrade` Vercel project, or another compatible Node hosting environment. Configure Node.js 22, `npm ci`, and `npm run build` from the repository root.
+3. Set `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CLIENT_SECRET`, `SESSION_ENCRYPTION_KEY`, `DATABASE_URL`, and `APP_URL` as server environment variables. For the existing public domain, use `APP_URL=https://balance-snaptrade.vercel.app` with no trailing slash. Production requires Postgres; the memory adapter is never a production option.
+4. Register the exact HTTPS callback and redeploy after changing credentials, origin, or database configuration.
+5. Open `/api/health` (process liveness), `/api/status` (configuration and complete database schema readiness), `/`, `/demo`, `/privacy`, and `/app` on the deployed domain, then complete the release checks below.
 
-1. Create a hosted Postgres database and copy its connection string. Use the database provider's required TLS settings. Apply the SQL in `migrations/001_sessions.sql` through the provider's SQL editor or a direct Postgres connection with permission to create the tables and indexes. For example, with `psql` installed and the migration connection in `DATABASE_URL`, run `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_sessions.sql`. The application does not run this migration automatically. Its runtime role needs `SELECT`, `INSERT`, `UPDATE`, and `DELETE` privileges on `balance_oauth_attempts` and `balance_sessions`.
-2. Import this GitHub repository into a new Vercel project. Select the Next.js framework preset and Node.js **22.x**. Use the repository root, `npm install` as the install command, and `npm run build` as the build command. Keep the `package.json` Node engine aligned with this major version; Vercel's [Node version rules](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions) allow a loose engine range to override the dashboard selection.
-3. Configure the five environment variables above in the hosting dashboard. Set `APP_URL` to the stable HTTPS production origin, with no trailing slash. Set `DATABASE_URL` to the hosted database, and generate a fresh production encryption key.
-4. Deploy. In the SnapTrade OAuth app settings, register the exact `APP_URL` plus `/api/auth/callback`.
-5. If a domain or environment variable changes, redeploy and update the registered callback together. A production application must have the credentials, encryption key, and durable database configured.
-6. Run the live checks below using the public URL.
+Keep credentials out of `NEXT_PUBLIC_*`, source control, and logs. Preserve the encryption key across deployments: sessions, policies, saved snapshots, and cached financial payloads depend on it. Separate production and preview databases/keys when they represent different environments. Use a migration role for table creation and a restricted runtime role for normal application access.
 
-Keep OAuth credentials and database access in server environment variables. Do not prefix these names with `NEXT_PUBLIC_`. Preserve the encryption key across deploys; changing it makes existing encrypted sessions unreadable and users will need to sign in again.
+## 4. Run automated verification
 
-Use one database and key consistently for all instances of an environment. Production and preview environments should use distinct credentials, session keys, and databases when they represent separate OAuth apps or test populations.
-
-## 4. Verify the deployed experience
-
-Run the repository checks first:
+Recorded local verification on October 14, 2026: **178 unit/integration tests and 10 migration tests**, including disposable real Postgres checks, plus **33 Chromium browser tests** with axe accessibility checks.
 
 ```sh
+npm run typecheck
 npm test
+npm run test:migrations
 npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
 
-The browser suite covers the sample experience, constraint changes, blocked data scenarios, setup dialogs, and mobile layout. Run `npx playwright install chromium` once, then `npm run test:e2e`. It uses port 3001 by default, starts or reuses a development server, and controls `/api/status` to keep sample flows independent of local credentials. It does not verify the external OAuth consent flow.
+Postgres suites require a disposable **loopback** database whose name starts with `balance_test`. For example:
 
-An optional Postgres integration suite exercises durable session behavior across independent connections. With a disposable loopback Postgres database whose name begins with `balance_test`, run `TEST_DATABASE_URL=postgres://USER:PASSWORD@127.0.0.1:5432/balance_test_sessions npx vitest run src/lib/server/store.postgres.test.ts`. The suite rejects remote hosts and other database names; keep this database separate from production sessions.
+```sh
+TEST_DATABASE_URL=postgresql://127.0.0.1:5432/balance_test_product npm test
+```
 
-Then verify these behaviors in the deployed application:
+Without that environment value, the database-specific suites skip. They reject remote hosts and other database names to keep integration-test mutations away from live data. CI provisions Postgres and runs type checking, tests, build, and Chromium verification.
 
-| Check                | What to establish                                                                                                                                                                                                                 |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sample walkthrough   | A reviewer can use the sample portfolio without credentials and can identify it as sample data.                                                                                                                                   |
-| OAuth connection     | Authorization goes to SnapTrade, returns to the registered HTTPS callback, and loads the Personal user's shared accounts.                                                                                                         |
-| Denied consent       | Denying access returns a useful recoverable state without creating an authenticated portfolio session.                                                                                                                            |
-| Account coverage     | Multiple accounts retain their names, currencies, cash, holdings, and data limitations.                                                                                                                                           |
-| Feasible simulation  | Whole-share proposed purchases fit the modeled cash of their own account; no cash silently crosses accounts.                                                                                                                      |
-| Taxable sales        | A taxable sale appears only after its explicit opt-in is enabled.                                                                                                                                                                 |
-| Empty data           | Cash-only and no-account scenarios do not invent holdings or crash.                                                                                                                                                               |
-| Explicit assumptions | Unclassified assets and unknown tax treatment require user review and acknowledgment; classifications clear on reload and cannot override missing prices, stale snapshots, or other data errors.                                  |
-| Persistence          | A signed-in session survives a new app instance or redeploy against the same database and encryption key.                                                                                                                         |
-| Disconnect           | Disconnect clears local access and attempts remote revocation. An unconfirmed revocation displays the recovery instruction to remove the app in the SnapTrade Dashboard. Returning to the portfolio requires fresh authorization. |
-| Data failure         | Expired authorization and unavailable account data produce a recovery path rather than a fabricated successful result.                                                                                                            |
-| Privacy              | Client responses and browser storage contain no OAuth secret, access token, refresh token, or database credential.                                                                                                                |
+Browser tests start or reuse `http://127.0.0.1:3001`. `PLAYWRIGHT_BASE_URL` can target an existing instance. They cover sample isolation, explicit policy saves, immutable historical prices and constraints, session/error gates, empty-account recovery, history retry, deletion, mobile layout, and automated WCAG A/AA checks. Connected browser journeys use controlled API responses; they do not authorize a real SnapTrade user. `CAPTURE_SCREENSHOTS=1` refreshes `docs/images/portfolio.png` and `rebalance.png`.
 
-Test token refresh and error paths with a controlled test environment when ordinary interactive testing cannot reliably force them. Automated tests and a successful build do not substitute for the real OAuth round trip.
+## 5. Establish live release evidence
 
-## 5. Reviewer walkthrough
+Run these checks against the deployed application with the configured Personal test user. Record the environment, date, outcome, and any limitation. Do not treat an automated test or successful build as evidence of an untested row.
 
-A useful five-minute demonstration:
+| Check                         | Required evidence                                                                                                                                                                                           |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public and sample entry       | `/` offers clear choices; `/demo` uses labeled sample data and sends no private API requests. `/app` never shows sample holdings while loading or recovering.                                               |
+| OAuth round trip              | Consent occurs at SnapTrade and returns to the exact HTTPS callback; accounts shown belong to the consenting Personal user.                                                                                 |
+| Denial and expiry             | Denied consent, expired session, or revoked authorization produces a useful sign-in/retry path without private data being replaced by sample results.                                                       |
+| Brokerage management          | Empty/disabled connections lead to Personal dashboard management; returning and reloading retrieves available normalized data.                                                                              |
+| First policy and return visit | Review and save targets, reserve, asset classifications, and tax treatment. Reload, sign in again, and use a new server instance to verify those saved choices return.                                      |
+| Feasible plan                 | Purchases fit their own account's modeled funds; proposed shares are integers; taxable sales require opt-in; missing/stale/unsupported inputs block.                                                        |
+| Save provenance               | Save a named plan, change policy or source prices, and reopen history. Original holdings, prices, sync times, policy, and result remain unchanged; export is explicitly historical.                         |
+| Durable history               | Saved policies and plans survive redeployment with the same database/key and remain isolated between two Personal users.                                                                                    |
+| Cache boundaries              | Immediate portfolio reload can reuse the 45-second server cache without claiming newer source data. An expired/deleted session cannot read a cached payload. Saving a plan performs its own source read.    |
+| Privacy controls              | Delete one plan; delete all workspace data; verify preferences/history are gone and prior cached snapshots are invalidated. Disconnect separately and verify saved history remains for later authorization. |
+| Revocation recovery           | Disconnect deletes local credentials and attempts remote revocation. An unconfirmed revocation gives the Personal-dashboard removal instruction.                                                            |
+| Failure recovery              | Account-data failures, rate limits, and saved-history failures have actionable recovery; a history failure does not prevent use of the loaded portfolio.                                                    |
 
-1. Open the sample portfolio. Explain why a portfolio-wide target does not make all cash available to every account.
-2. Edit allocation targets and run a simulation. Inspect the before/after allocation, whole-share changes, residual cash, and per-account funding.
-3. Toggle taxable sales and rerun the same scenario. Explain which new actions become possible and why a tax calculation is outside this result.
-4. Inspect a constraint or data limitation. Explain the treatment of currencies, stale prices, and unsupported instruments.
-5. Connect SnapTrade with a Personal Sandbox user. Show that the same planner works with normalized API data, then disconnect.
+Use controlled server tests for token-rotation races and forced protocol failures that are difficult to reproduce interactively. Observe actual production behavior for consent, broker normalization, persistence, and isolation.
 
-Suggested deep-dive questions:
+## 6. Reviewer walkthrough and submission
 
-- Where are the planner's feasibility invariants enforced, and which tests would detect a violation?
-- Can this heuristic fail to find a better feasible allocation? What would an integer optimizer change?
-- How does the integration prevent cash-equivalent double counting and cross-account cash movement?
-- How are missing prices and mixed currencies represented without a misleading total?
-- How are state, PKCE, nonce verification, encrypted storage, and refresh rotation implemented?
-- What happens when two server instances refresh the same session, a brokerage is stale, or a request is rate-limited?
-- What would be required to add execution, fees, settlement, or tax-sensitive optimization responsibly?
+A focused demonstration:
 
-## 6. Submit
+1. Enter `/demo` explicitly from the landing page and review your target mix and reserve.
+2. Inspect the same account's trades and funding ledger; compare taxable-sale permission or a hypothetical contribution.
+3. Save a named snapshot, change current preferences, and show that historical holdings/prices and policy remain intact.
+4. Inspect a stale/missing-data scenario and its blocked plan.
+5. After live verification, repeat the connected journey in `/app`, demonstrate persistence, and explain the separate delete/disconnect controls.
 
-After the public OAuth flow is verified, open the [Product Engineer application](https://careers.snaptrade.com/product-engineer), sign in with SnapTrade, choose the Commercial project associated with this app, provide its public URL, and add a LinkedIn URL or résumé.
+Explain the bounded heuristic, source freshness versus retrieval time, the cache's authentication boundary, server recalculation before saving, and why hypothetical results are never executable orders.
 
-The repository does not submit an application on your behalf. Include a short, candid description of the implemented scope and remaining limitations, and be ready to explain the code and product choices.
+After the public OAuth and persistence checks pass, use the [Product Engineer application](https://careers.snaptrade.com/product-engineer) to select the associated Commercial project, provide the public URL, and supply the requested professional profile. This repository does not submit an application on your behalf.
 
 Suggested project description:
 
-> BALANCE is a read-only portfolio rebalancing simulator for investors with multiple brokerage accounts. It turns target allocations into whole-share, account-funded plans, keeps taxable sales behind an explicit choice, and makes residual cash and data limitations visible. SnapTrade OAuth provides the account data; proposed changes remain simulations. The planner favors feasible, explainable results and does not model fees, realized taxes, settlement, FX conversion, or a globally optimal allocation.
+> BALANCE is a read-only portfolio planning workspace for investors with USD stocks and ETFs across brokerage accounts. It turns personal allocation targets into whole-share, account-funded simulations, preserves user-reviewed assumptions, and saves immutable historical plans with their original data. Taxable sales require explicit permission, incomplete data pauses recommendations, and every result exposes its funding and remaining drift. The model excludes execution, fees, taxes, settlement, FX, and a guarantee of global optimality.
 
-## Current deployment
+## Deployment verification status
 
-The public demo is at [balance-snaptrade.vercel.app](https://balance-snaptrade.vercel.app). It is deployed from this repository in the `balance-snaptrade` Vercel project. The public portfolio and rebalancing flow have been checked on production. Real SnapTrade OAuth remains unconfigured until you complete the Commercial app and production database setup above.
+The public project URL is [balance-snaptrade.vercel.app](https://balance-snaptrade.vercel.app), with the intended callback `https://balance-snaptrade.vercel.app/api/auth/callback`.
 
-Use `https://balance-snaptrade.vercel.app` as `APP_URL` and register `https://balance-snaptrade.vercel.app/api/auth/callback` when configuring this deployment.
+**Pending:** real Personal-user consent, actual brokerage-data normalization, and deployed session/preferences/history persistence. Update this section with dated evidence after completing those checks; do not infer them from the sample workspace or mocked browser suite.

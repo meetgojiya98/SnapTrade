@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { configurationRequirements } from '@/lib/server/config';
 import { getSessionStore } from '@/lib/server/store';
 import { PRIVATE_HEADERS, sessionId } from '@/lib/server/routes';
+import { assertDatabaseReady } from '@/lib/server/readiness';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
       { headers: PRIVATE_HEADERS },
     );
   try {
+    await assertDatabaseReady();
     const id = sessionId(request);
     const connected = Boolean(id && (await getSessionStore().readSession(id)));
     return NextResponse.json(
@@ -26,7 +28,7 @@ export async function GET(request: NextRequest) {
         configured: false,
         connected: false,
         requirements: [
-          'Session database unavailable. Apply migrations/001_sessions.sql and verify DATABASE_URL.',
+          'Workspace database unavailable. Verify the database connection and apply all migrations.',
         ],
       },
       { status: 503, headers: PRIVATE_HEADERS },

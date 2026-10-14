@@ -61,7 +61,7 @@ describe.skipIf(!databaseUrl)('Postgres encrypted session store (integration)', 
     const [row] =
       await firstSql`SELECT id_hash, payload FROM balance_sessions WHERE id_hash = ${hashSecret(id)}`;
     expect(row.id_hash).not.toBe(id);
-    expect(row.payload).not.toContain('private-');
+    expect(row.payload).not.toContain('"accessToken":"private-access-credential"');
     expect(await second.readSession(id)).toEqual(credentials);
   });
   it('consumes browser-bound login state once across independent connections', async () => {

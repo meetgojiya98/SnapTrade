@@ -3,6 +3,7 @@ import { decimalCents, maskAccountNumber, normalizeAccount } from './normalize';
 import { loadPortfolio } from './portfolio';
 import { UpstreamError } from './errors';
 import type { OAuthService } from './oauth';
+import { generatePlan, defaultTargets } from '@/lib/planner';
 
 const asOf = '2026-10-14T14:00:00.000Z';
 const account = {
@@ -82,6 +83,34 @@ describe('SnapTrade normalization', () => {
     expect(result.positions).toHaveLength(1);
     expect(result.issues).toEqual([]);
   });
+
+  it.each([undefined, null, '', 123])(
+    'blocks planning when stable instrument identity is missing: %s',
+    (instrumentId) => {
+      const result = normalizeAccount(
+        account,
+        {
+          ...positionResponse,
+          results: [{ ...position, instrument: { ...position.instrument, id: instrumentId } }],
+        },
+        balances,
+        { connectionKnown: true },
+      );
+      expect(result.issues.join(' ')).toContain('stable instrument identity is unavailable');
+      const plan = generatePlan([result], {
+        targets: defaultTargets,
+        cashBufferCents: 25_000,
+        minimumTradeCents: 10_000,
+        allowTaxableSales: false,
+        contributionCents: 0,
+        contributionAccountId: null,
+        now: asOf,
+      });
+      expect(plan.status).toBe('blocked');
+      expect(plan.trades).toHaveLength(0);
+      expect(plan.blockers.join(' ')).toContain('stable instrument identity is unavailable');
+    },
+  );
   it('does not infer asset classes from arbitrary ticker names or unsupported instruments', () => {
     const response = {
       ...positionResponse,

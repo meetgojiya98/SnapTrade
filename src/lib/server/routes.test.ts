@@ -43,7 +43,7 @@ describe('server route security', () => {
     vi.stubEnv('SNAPTRADE_CLIENT_ID', '');
     const response = await login(new NextRequest('http://localhost:3000/api/auth/login'));
     expect(response.status).toBe(303);
-    expect(response.headers.get('location')).toBe('http://localhost:3000/?error=configuration');
+    expect(response.headers.get('location')).toBe('http://localhost:3000/app?error=configuration');
   });
   it('requires an opaque cookie for live data and does not leak configuration secrets', async () => {
     configured();

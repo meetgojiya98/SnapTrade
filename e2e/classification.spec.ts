@@ -1,20 +1,20 @@
 import { expect, test, type Page } from '@playwright/test';
 import { makeDemoPortfolio } from '../src/lib/demo';
 import type { Portfolio } from '../src/lib/types';
-import { livePortfolioNeedingClassification } from './fixtures';
+import {
+  livePortfolioNeedingClassification,
+  mockLiveWorkspace,
+  navigateWorkspace,
+} from './fixtures';
 
 const unknownTax =
   'The account tax treatment is unknown. Verify the account type before using a plan.';
 
 async function loadLiveFixture(page: Page, portfolio: Portfolio) {
-  await page.route('**/api/status', (route) =>
-    route.fulfill({
-      json: { configured: true, connected: true, requirements: [] },
-    }),
-  );
-  await page.route('**/api/portfolio', (route) => route.fulfill({ json: portfolio }));
-  await page.goto('/');
+  const server = await mockLiveWorkspace(page, portfolio);
+  await page.goto('/app');
   await expect(page.getByText('Connected workspace', { exact: true })).toBeVisible();
+  return server;
 }
 
 async function openRebalance(page: Page) {
@@ -25,7 +25,7 @@ async function openRebalance(page: Page) {
 }
 
 async function confirmAssetClass(page: Page) {
-  await page.getByRole('button', { name: 'Review classifications', exact: true }).click();
+  await page.getByRole('button', { name: 'Review classifications', exact: true }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Make the assumptions yours.', exact: true });
   await dialog
     .getByRole('combobox', { name: 'SCHB classification in Account needing review', exact: true })
@@ -36,17 +36,17 @@ async function confirmAssetClass(page: Page) {
   await dialog.getByRole('button', { name: 'Use my classifications', exact: true }).click();
 }
 
-test('explicit asset and account review clears only those assumptions and resets on reload', async ({
+test('explicit asset and account review persists across reload without overriding other data checks', async ({
   page,
 }) => {
   const portfolio = livePortfolioNeedingClassification();
   portfolio.accounts[0].issues.push(unknownTax);
-  await loadLiveFixture(page, portfolio);
+  const server = await loadLiveFixture(page, portfolio);
   await openRebalance(page);
   await expect(
     page.getByRole('heading', { name: 'Let’s resolve the data first.', exact: true }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Review classifications', exact: true }).click();
+  await page.getByRole('button', { name: 'Review classifications', exact: true }).first().click();
   let dialog = page.getByRole('dialog', { name: 'Make the assumptions yours.', exact: true });
   await dialog
     .getByRole('combobox', { name: 'SCHB classification in Account needing review', exact: true })
@@ -67,7 +67,7 @@ test('explicit asset and account review clears only those assumptions and resets
   await expect(blockedPlan.getByRole('status')).toContainText('tax treatment is unknown');
   await expect(blockedPlan.getByRole('status')).not.toContainText('asset class is unverified');
 
-  await page.getByRole('button', { name: 'Review classifications', exact: true }).click();
+  await page.getByRole('button', { name: 'Review classifications', exact: true }).first().click();
   dialog = page.getByRole('dialog', { name: 'Make the assumptions yours.', exact: true });
   await expect(
     dialog.getByRole('combobox', {
@@ -86,11 +86,15 @@ test('explicit asset and account review clears only those assumptions and resets
     page.getByRole('heading', { name: 'A plan you can understand.', exact: true }),
   ).toBeVisible();
 
+  await page.getByRole('button', { name: 'Save workspace preferences', exact: true }).click();
+  await expect
+    .poll(() => server.getWorkspace().preferences.accountTypes['live-review-account'])
+    .toBe('taxable');
   await page.reload();
   await expect(page.getByText('Connected workspace', { exact: true })).toBeVisible();
   await openRebalance(page);
   await expect(
-    page.getByRole('heading', { name: 'Let’s resolve the data first.', exact: true }),
+    page.getByRole('heading', { name: 'A plan you can understand.', exact: true }),
   ).toBeVisible();
 });
 
@@ -117,34 +121,59 @@ for (const issue of ['missing price', 'stale snapshot'] as const) {
     );
     await expect(blockedPlan.getByRole('status')).not.toContainText('asset class is unverified');
     await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toHaveCount(0);
+    if (issue === 'stale snapshot') {
+      portfolio.accounts[0].syncedAt = new Date().toISOString();
+      await navigateWorkspace(page, 'Connections');
+      const reloaded = page.waitForResponse('**/api/portfolio');
+      await page.getByRole('button', { name: 'Reload snapshots', exact: true }).click();
+      await reloaded;
+      await navigateWorkspace(page, 'Rebalance');
+      await expect(
+        page.getByRole('heading', { name: 'A plan you can understand.', exact: true }),
+      ).toBeVisible();
+    }
   });
 }
 
-test('failed remote revocation deletes local access and shows the dashboard recovery warning', async ({
-  page,
-}) => {
-  const portfolio = makeDemoPortfolio();
-  portfolio.mode = 'live';
-  portfolio.warnings = [];
-  const warning =
-    'Local credentials were deleted, but remote revocation could not be confirmed. Remove this app in your SnapTrade dashboard.';
-  await page.route('**/api/auth/logout', (route) =>
-    route.fulfill({
-      json: { disconnected: true, revoked: false, warning },
-    }),
-  );
-  await loadLiveFixture(page, portfolio);
-  await page
-    .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: /^Connections/ })
-    .click();
-  await page.getByRole('button', { name: 'Disconnect SnapTrade', exact: true }).click();
-  await expect(page.getByText('Demo workspace', { exact: true })).toBeVisible();
-  await expect(page.getByRole('alert').filter({ hasText: warning })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Disconnect SnapTrade', exact: true })).toHaveCount(
-    0,
-  );
-});
+for (const { revoked, warning } of [
+  {
+    revoked: false,
+    warning:
+      'Local credentials were deleted, but remote revocation could not be confirmed. Remove this app in your SnapTrade dashboard.',
+  },
+  {
+    revoked: true,
+    warning:
+      'Cleanup of the encrypted temporary snapshot could not be confirmed. Your ended session cannot access it.',
+  },
+]) {
+  test(`disconnect deletes local access and shows recovery warnings when revoked=${revoked}`, async ({
+    page,
+  }) => {
+    const portfolio = makeDemoPortfolio();
+    portfolio.mode = 'live';
+    portfolio.warnings = [];
+    await page.route('**/api/auth/logout', (route) =>
+      route.fulfill({
+        json: { disconnected: true, revoked, warning },
+      }),
+    );
+    await loadLiveFixture(page, portfolio);
+    await page
+      .getByRole('navigation', { name: 'Main navigation' })
+      .getByRole('button', { name: /^Connections/ })
+      .click();
+    await page.getByRole('button', { name: 'Disconnect SnapTrade', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Bring your accounts into focus.', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText('Sample workspace', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('alert').filter({ hasText: warning })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Disconnect SnapTrade', exact: true }),
+    ).toHaveCount(0);
+  });
+}
 
 test('an open live snapshot expires as time advances and cannot be exported', async ({ page }) => {
   const now = new Date();

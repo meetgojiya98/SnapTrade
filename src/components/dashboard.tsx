@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
+  Bookmark,
+  Save,
+  Trash2,
   ArrowDownLeft,
   ArrowRight,
   ArrowUpRight,
@@ -29,16 +32,28 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { makeDemoPortfolio } from '@/lib/demo';
 import { applyClassifications } from '@/lib/classification';
-import { csvCell, inputCents } from '@/lib/inputs';
+import { inputCents } from '@/lib/inputs';
+import { defaultWorkspacePreferences, summarizePlan } from '@/lib/workspace';
+import type { SavedPlan, SavedPlanSummary, Workspace, WorkspacePreferences } from '@/lib/workspace';
+import { parsePreferences } from '@/lib/workspace-validation';
+import {
+  samplePortfolio,
+  demoTime,
+  readDemoWorkspace,
+  writeDemoWorkspace,
+  demoStorageKey,
+} from './demo-workspace';
+import { Dialog, WorkspaceGate, WorkspaceLoading } from './workspace-ui';
+import { SavedPlans, SavedPlanDetail, downloadPlan } from './saved-plans';
 import ClassificationEditor from './classification-editor';
 import CashProof from './cash-proof';
 import { accountValueCents, defaultTargets, generatePlan } from '@/lib/planner';
 import type { Account, AssetClass, Portfolio, Target, Trade } from '@/lib/types';
 
-type View = 'portfolio' | 'rebalance' | 'connections';
-type Modal = 'connect' | 'targets' | 'method' | 'classify' | null;
+type View = 'portfolio' | 'rebalance' | 'connections' | 'plans';
+type Modal =
+  'connect' | 'targets' | 'method' | 'classify' | 'save' | 'delete-plan' | 'delete-data' | null;
 type Status = { configured: boolean; connected: boolean; requirements: string[] };
 const classes: Record<AssetClass, { name: string; short: string; color: string; tint: string }> = {
   'us-equity': { name: 'US equities', short: 'US', color: '#176c50', tint: '#eaf2ee' },
@@ -108,63 +123,52 @@ function BrokerIcon({ broker, small = false }: { broker: string; small?: boolean
     </span>
   );
 }
-function Dialog({
-  title,
-  children,
-  onClose,
-}: {
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    const previous = document.activeElement as HTMLElement | null;
-    el?.showModal();
-    return () => {
-      el?.close();
-      previous?.focus();
-    };
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      aria-label={title}
-      className="dialog"
-      onCancel={onClose}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="dialog-heading">
-        <h2>{title}</h2>
-        <button className="icon-button" aria-label="Close dialog" onClick={onClose}>
-          <X size={20} />
-        </button>
-      </div>
-      {children}
-    </dialog>
-  );
+class WorkspaceRequestError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code = '',
+  ) {
+    super(message);
+  }
 }
+async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(url, { cache: 'no-store', ...init });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw new WorkspaceRequestError(
+      body.error || 'The request could not be completed. Please try again.',
+      response.status,
+      body.code,
+    );
+  return body as T;
+}
+const blankPortfolio = (): Portfolio => ({ mode: 'live', asOf: '', accounts: [], warnings: [] });
 
-export default function Dashboard() {
-  const [sourcePortfolio, setPortfolio] = useState<Portfolio>(() => makeDemoPortfolio());
+export default function Dashboard({ mode }: { mode: 'demo' | 'live' }) {
+  const [sourcePortfolio, setPortfolio] = useState<Portfolio>(() =>
+    mode === 'demo' ? samplePortfolio() : blankPortfolio(),
+  );
   const [classifications, setClassifications] = useState<Record<string, AssetClass>>({});
   const [accountTypes, setAccountTypes] = useState<Record<string, Account['type']>>({});
   const portfolio = useMemo(
     () => applyClassifications(sourcePortfolio, classifications, accountTypes),
     [sourcePortfolio, classifications, accountTypes],
   );
-  const canClassify =
-    sourcePortfolio.mode === 'live' &&
-    sourcePortfolio.accounts.some(
-      (a) =>
-        a.positions.some((p) => p.assetClass === 'unclassified') ||
-        a.issues.includes(
-          'The account tax treatment is unknown. Verify the account type before using a plan.',
-        ),
-    );
+  const canClassify = sourcePortfolio.accounts.some(
+    (account) =>
+      account.positions.some((position) => position.assetClass === 'unclassified') ||
+      account.issues.includes(
+        'The account tax treatment is unknown. Verify the account type before using a plan.',
+      ),
+  );
+  const hasUnverified = portfolio.accounts.some(
+    (account) =>
+      account.positions.some((position) => position.assetClass === 'unclassified') ||
+      account.issues.includes(
+        'The account tax treatment is unknown. Verify the account type before using a plan.',
+      ),
+  );
   const [view, setView] = useState<View>('portfolio');
   const [modal, setModal] = useState<Modal>(null);
   const [status, setStatus] = useState<Status>({
@@ -172,10 +176,13 @@ export default function Dashboard() {
     connected: false,
     requirements: [],
   });
+  const [gate, setGate] = useState<'loading' | 'signed-out' | 'error' | 'ready'>(
+    mode === 'demo' ? 'ready' : 'loading',
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
-  const [targets, setTargets] = useState<Target[]>(defaultTargets.map((t) => ({ ...t })));
+  const [targets, setTargets] = useState<Target[]>(defaultTargets.map((target) => ({ ...target })));
   const [draftTargets, setDraftTargets] = useState<Target[]>(targets);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'value' | 'symbol'>('value');
@@ -188,9 +195,207 @@ export default function Dashboard() {
   const [notice, setNotice] = useState('');
   const [mobileNav, setMobileNav] = useState(false);
   const [comparison, setComparison] = useState<'current' | 'planned'>('current');
-  const [valuationTime, setValuationTime] = useState(() => Date.now());
+  const [valuationTime, setValuationTime] = useState(() =>
+    mode === 'demo' ? Date.parse(demoTime) : Date.now(),
+  );
+  const [onboarded, setOnboarded] = useState(false);
+  const [reviewed, setReviewed] = useState({
+    targets: false,
+    reserve: false,
+    classifications: false,
+  });
+  const [savedPreferences, setSavedPreferences] = useState(
+    JSON.stringify(defaultWorkspacePreferences),
+  );
+  const [savingPreferences, setSavingPreferences] = useState(false);
+  const [plans, setPlans] = useState<SavedPlanSummary[]>([]);
+  const [demoPlans, setDemoPlans] = useState<SavedPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [plansError, setPlansError] = useState('');
+  const [planBusy, setPlanBusy] = useState(false);
+  const [planName, setPlanName] = useState('');
+  const [inspectedPlan, setInspectedPlan] = useState<SavedPlan | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<SavedPlanSummary | null>(null);
+  const [undoPlan, setUndoPlan] = useState<SavedPlan | null>(null);
+  const requestController = useRef<AbortController | null>(null);
+  const privateEpoch = useRef(0);
 
+  const preferences = useMemo<WorkspacePreferences>(
+    () => ({
+      targets,
+      reserveCents: inputCents(reserve),
+      minimumTradeCents: inputCents(minimum),
+      allowTaxableSales,
+      selectedAccountIds: selected,
+      classifications,
+      accountTypes,
+    }),
+    [targets, reserve, minimum, allowTaxableSales, selected, classifications, accountTypes],
+  );
+  const preferencesDirty = JSON.stringify(preferences) !== savedPreferences;
+  const validPreferences =
+    Number.isSafeInteger(preferences.reserveCents) &&
+    Number.isSafeInteger(preferences.minimumTradeCents) &&
+    preferences.reserveCents >= 0 &&
+    preferences.minimumTradeCents >= 0;
+  const privateReady = gate === 'ready';
+  function applyPreferences(next: WorkspacePreferences) {
+    setTargets(next.targets.map((target) => ({ ...target })));
+    setReserve(String(next.reserveCents / 100));
+    setMinimum(String(next.minimumTradeCents / 100));
+    setAllowTaxableSales(next.allowTaxableSales);
+    setSelected(next.selectedAccountIds);
+    setClassifications(next.classifications);
+    setAccountTypes(next.accountTypes);
+    setSavedPreferences(JSON.stringify(next));
+  }
+  function clearPrivate() {
+    privateEpoch.current += 1;
+    setPortfolio(blankPortfolio());
+    applyPreferences(defaultWorkspacePreferences);
+    setPlans([]);
+    setPlansError('');
+    setInspectedPlan(null);
+    setContribution('0');
+    setContributionAccount('');
+    setOnboarded(false);
+    setReviewed({ targets: false, reserve: false, classifications: false });
+    setStatus((previous) => ({ ...previous, connected: false }));
+    setGate('signed-out');
+  }
+  function handleRequestError(cause: unknown, fallback: string) {
+    if (cause instanceof Error && cause.name === 'AbortError') return;
+    if (cause instanceof WorkspaceRequestError && cause.status === 401) {
+      clearPrivate();
+      setModal(null);
+      setError('Your SnapTrade session has expired. Reconnect to open your private workspace.');
+      return;
+    }
+    setError(cause instanceof Error ? cause.message : fallback);
+  }
+  async function loadLive(hydrate = false) {
+    if (mode === 'demo') return;
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    setLoading(true);
+    setError('');
+    if (hydrate) setGate('loading');
+    try {
+      const nextStatus = await requestJson<Status>('/api/status', { signal: controller.signal });
+      setStatus(nextStatus);
+      if (!nextStatus.connected) {
+        clearPrivate();
+        return;
+      }
+      if (hydrate) {
+        const [portfolioResult, workspaceResult, historyResult] = await Promise.allSettled([
+          requestJson<Portfolio>('/api/portfolio', { signal: controller.signal }),
+          requestJson<Workspace>('/api/workspace', { signal: controller.signal }),
+          requestJson<{ plans: SavedPlanSummary[] }>('/api/plans', { signal: controller.signal }),
+        ]);
+        if (controller.signal.aborted) return;
+        for (const result of [portfolioResult, workspaceResult, historyResult]) {
+          if (
+            result.status === 'rejected' &&
+            result.reason instanceof WorkspaceRequestError &&
+            result.reason.status === 401
+          )
+            throw result.reason;
+        }
+        if (portfolioResult.status === 'rejected') throw portfolioResult.reason;
+        if (workspaceResult.status === 'rejected') throw workspaceResult.reason;
+        const nextPortfolio = portfolioResult.value;
+        const workspace = workspaceResult.value;
+        if (nextPortfolio.mode !== 'live')
+          throw new Error(
+            'The brokerage service returned an unexpected portfolio. Please reconnect.',
+          );
+        setPortfolio(nextPortfolio);
+        applyPreferences(parsePreferences(workspace.preferences));
+        setOnboarded(!!workspace.updatedAt);
+        if (historyResult.status === 'fulfilled') {
+          setPlans(historyResult.value.plans);
+          setPlansError('');
+        } else
+          setPlansError(
+            'Your saved plan history is temporarily unavailable. Your current portfolio and preferences are ready.',
+          );
+      } else {
+        const nextPortfolio = await requestJson<Portfolio>('/api/portfolio', {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        if (nextPortfolio.mode !== 'live')
+          throw new Error(
+            'The brokerage service returned an unexpected portfolio. Please reconnect.',
+          );
+        setPortfolio(nextPortfolio);
+        setNotice('Latest available brokerage snapshots loaded.');
+      }
+      setGate('ready');
+      setValuationTime(Date.now());
+    } catch (cause) {
+      if (controller.signal.aborted) return;
+      handleRequestError(cause, 'Your portfolio could not be loaded.');
+      if (
+        !(cause instanceof WorkspaceRequestError && cause.status === 401) &&
+        (hydrate || !sourcePortfolio.accounts.length)
+      )
+        setGate('error');
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const initialView = params.get('view');
+    if (
+      initialView === 'portfolio' ||
+      initialView === 'rebalance' ||
+      initialView === 'connections' ||
+      initialView === 'plans'
+    )
+      setView(initialView);
+    const pop = () => {
+      const next = new URLSearchParams(window.location.search).get('view');
+      setView(
+        next === 'rebalance' || next === 'connections' || next === 'plans' ? next : 'portfolio',
+      );
+    };
+    window.addEventListener('popstate', pop);
+    if (mode === 'demo') {
+      const saved = readDemoWorkspace();
+      if (saved) {
+        applyPreferences(saved.preferences);
+        setOnboarded(saved.onboarded);
+        setDemoPlans(saved.plans);
+        setPlans(saved.plans.map(summarizePlan));
+      }
+    } else {
+      void loadLive(true);
+    }
+    if (params.has('error')) {
+      const code = params.get('error');
+      setError(
+        code === 'access_denied'
+          ? 'You cancelled sign-in. You can reconnect whenever you are ready.'
+          : 'Sign-in could not be completed. Please reconnect and try again.',
+      );
+      params.delete('error');
+      window.history.replaceState(
+        {},
+        '',
+        `${window.location.pathname}${params.size ? `?${params}` : ''}`,
+      );
+    }
+    return () => {
+      requestController.current?.abort();
+      window.removeEventListener('popstate', pop);
+    };
+  }, [mode]);
+  useEffect(() => {
+    if (mode === 'demo') return;
     const update = () => setValuationTime(Date.now());
     const timer = window.setInterval(update, 30000);
     window.addEventListener('focus', update);
@@ -200,60 +405,13 @@ export default function Dashboard() {
       window.removeEventListener('focus', update);
       document.removeEventListener('visibilitychange', update);
     };
-  }, []);
-
-  async function loadLive() {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/portfolio', { cache: 'no-store' });
-      const body = await res.json();
-      if (!res.ok)
-        throw new Error(body.error || 'Your accounts could not be loaded. Please try again.');
-      setPortfolio(body);
-      setSelected([]);
-      setContribution('0');
-      setScenario('normal');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Your accounts could not be loaded.');
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => {
-    let active = true;
-    fetch('/api/status', { cache: 'no-store' })
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
-      .then((body: Status) => {
-        if (!active) return;
-        setStatus(body);
-        if (body.connected) void loadLive();
-      })
-      .catch(() => {
-        if (active) setError('Connection status is unavailable. The demo remains available.');
-      });
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('error')) {
-      const code = params.get('error');
-      setError(
-        code === 'access_denied'
-          ? 'You cancelled the connection. You can try again anytime.'
-          : code === 'configuration'
-            ? 'SnapTrade needs to be configured before connecting. Open Connections for setup.'
-            : 'The sign-in could not be completed. Please reconnect and try again.',
-      );
-      window.history.replaceState({}, '', '/');
-    }
-    return () => {
-      active = false;
-    };
-  }, []);
+  }, [mode]);
   useEffect(() => {
     if (!notice) return;
-    const timer = setTimeout(() => setNotice(''), 4500);
+    const timer = setTimeout(() => {
+      setNotice('');
+      setUndoPlan(null);
+    }, 7000);
     return () => clearTimeout(timer);
   }, [notice]);
 
@@ -282,7 +440,7 @@ export default function Dashboard() {
     contributionAccountId: selectedContributionAccount || null,
     minimumTradeCents: inputCents(minimum),
   };
-  const currentPlan = useMemo(
+  const calculatedPlan = useMemo(
     () =>
       generatePlan(accounts, {
         targets,
@@ -304,6 +462,17 @@ export default function Dashboard() {
       valuationTime,
     ],
   );
+  const currentPlan =
+    mode === 'live' && !onboarded
+      ? {
+          ...calculatedPlan,
+          status: 'blocked' as const,
+          trades: [],
+          blockers: [
+            'Review your target mix, cash reserve, and classifications, then save your workspace preferences before creating your first plan.',
+          ],
+        }
+      : calculatedPlan;
   const holdings = accounts
     .flatMap((a) =>
       a.positions
@@ -318,12 +487,29 @@ export default function Dashboard() {
     accounts.flatMap((a) => a.positions.filter((p) => !p.cashEquivalent).map((p) => p.symbol)),
   ).size;
   const showingPlanned = comparison === 'planned' && currentPlan.status === 'ready';
-  const chartAllocation = showingPlanned ? currentPlan.after : currentPlan.before;
+  const observedAllocation = (Object.keys(classes) as AssetClass[]).map((assetClass) => {
+    const valueCents = accounts.reduce(
+      (sum, account) =>
+        sum +
+        account.positions
+          .filter((position) => position.assetClass === assetClass)
+          .reduce((subtotal, position) => subtotal + positionValue(position), 0),
+      0,
+    );
+    return {
+      assetClass,
+      valueCents,
+      percent: total > 0 ? (valueCents / total) * 100 : 0,
+      targetPercent: targets.find((target) => target.assetClass === assetClass)?.percent || 0,
+    };
+  });
+  const chartAllocation = showingPlanned ? currentPlan.after : observedAllocation;
   const protectedCash = options.cashBufferCents * accounts.length;
-  const chartCash =
-    (showingPlanned ? currentPlan.cashAfterCents : currentPlan.cashBeforeCents) - protectedCash;
+  const chartCash = showingPlanned ? currentPlan.cashAfterCents - protectedCash : cash;
   const chartCashPercent =
-    currentPlan.totalCents > 0 ? (chartCash / currentPlan.totalCents) * 100 : 0;
+    (showingPlanned ? currentPlan.totalCents : total) > 0
+      ? (chartCash / (showingPlanned ? currentPlan.totalCents : total)) * 100
+      : 0;
   const usPercent =
     currentPlan.status === 'ready'
       ? currentPlan.before.find((a) => a.assetClass === 'us-equity')?.percent || 0
@@ -341,102 +527,286 @@ export default function Dashboard() {
     setMobileNav(false);
     setQuery('');
     setComparison('current');
+    const url = new URL(window.location.href);
+    if (next === 'portfolio') url.searchParams.delete('view');
+    else url.searchParams.set('view', next);
+    window.history.pushState({}, '', `${url.pathname}${url.search}`);
   }
   function toggleAccount(id: string) {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]));
+    setSelected((previous) =>
+      previous.includes(id) ? previous.filter((account) => account !== id) : [...previous, id],
+    );
   }
   function changeScenario(next: string) {
-    const data = makeDemoPortfolio();
-    if (next === 'stale')
-      data.accounts[0].syncedAt = new Date(Date.now() - 48 * 3600000).toISOString();
-    if (next === 'currency') {
-      data.accounts[2].currency = 'CAD';
-      data.accounts[2].positions.forEach((p) => {
-        p.currency = 'CAD';
-      });
-    }
-    if (next === 'missing') data.accounts[0].positions[0].priceCents = null;
+    if (mode !== 'demo') return;
     setScenario(next);
-    setPortfolio(data);
+    setPortfolio(samplePortfolio(next));
     setSelected([]);
     setClassifications({});
     setAccountTypes({});
+    setComparison('current');
+  }
+  function persistDemo(
+    nextPreferences = preferences,
+    nextPlans = demoPlans,
+    completed = onboarded,
+  ) {
+    writeDemoWorkspace({
+      version: 1,
+      preferences: parsePreferences(nextPreferences),
+      plans: nextPlans,
+      onboarded: completed,
+    });
+  }
+  async function savePreferences() {
+    const epoch = privateEpoch.current;
+    setSavingPreferences(true);
+    setError('');
+    try {
+      const validated = parsePreferences(preferences);
+      if (mode === 'demo') persistDemo(validated, demoPlans, true);
+      else
+        await requestJson<Workspace>('/api/workspace', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ preferences: validated }),
+        });
+      if (epoch !== privateEpoch.current) return;
+      setSavedPreferences(JSON.stringify(validated));
+      setOnboarded(true);
+      setNotice(
+        mode === 'demo'
+          ? 'Sample preferences saved in this browser.'
+          : 'Workspace preferences saved securely.',
+      );
+    } catch (cause) {
+      handleRequestError(cause, 'Your preferences could not be saved.');
+    } finally {
+      setSavingPreferences(false);
+    }
   }
   function exportPlan() {
-    const freshPlan = generatePlan(accounts, { ...options, now: new Date().toISOString() });
-    if (freshPlan.status === 'blocked') {
-      setValuationTime(Date.now());
+    const freshPlan = generatePlan(accounts, {
+      ...options,
+      now: mode === 'demo' ? demoTime : new Date().toISOString(),
+    });
+    if (freshPlan.status === 'blocked' || (mode === 'live' && !onboarded)) {
       setError(
-        `This plan needs review before export. ${freshPlan.blockers[0] || 'Reload the latest account snapshots.'}`,
+        `This plan needs review before export. ${freshPlan.blockers[0] || 'Save your workspace preferences first.'}`,
       );
       return;
     }
-    const rows = [
-      [
-        'Account',
-        'Side',
-        'Symbol',
-        'Shares',
-        `Estimated price (${currency})`,
-        `Estimated value (${currency})`,
-        'Reason',
-      ],
-      ...[...freshPlan.trades]
-        .sort((a, b) => (a.side === 'sell' ? 0 : 1) - (b.side === 'sell' ? 0 : 1))
-        .map((t) => [
-          t.accountName,
-          t.side,
-          t.symbol,
-          t.quantity,
-          (t.priceCents / 100).toFixed(2),
-          (t.valueCents / 100).toFixed(2),
-          t.reason,
-        ]),
-    ];
-    const csv = [
-      '# Balance simulation — indicative prices; no orders placed. Fees, taxes, FX and settlement are not modeled.',
-      ...rows.map((row) => row.map(csvCell).join(',')),
-    ].join('\r\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'balance-rebalance-plan.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-    setNotice('Your plan was exported. No orders were placed.');
+    downloadPlan(freshPlan, currency, 'balance-rebalance-plan', {
+      historical: false,
+      asOf: sourcePortfolio.asOf,
+      demo: mode === 'demo',
+    });
+    setNotice('Simulation exported. No orders were placed.');
+  }
+  async function savePlan() {
+    const epoch = privateEpoch.current;
+    if (planBusy || !planName.trim() || currentPlan.status !== 'ready' || !onboarded) return;
+    setPlanBusy(true);
+    setError('');
+    try {
+      let saved: SavedPlan;
+      if (mode === 'demo') {
+        if (demoPlans.length >= 25)
+          throw new Error('You can keep up to 25 sample plans. Remove one before saving another.');
+        const result = generatePlan(accounts, { ...options, now: demoTime });
+        if (result.status !== 'ready')
+          throw new Error(result.blockers[0] || 'Review the plan inputs first.');
+        saved = {
+          id: crypto.randomUUID(),
+          name: planName.trim(),
+          createdAt: new Date().toISOString(),
+          asOf: sourcePortfolio.asOf,
+          sourceFingerprint: `sample-fixture-v1:${scenario}`,
+          status: result.status,
+          driftBefore: result.driftBefore,
+          driftAfter: result.driftAfter,
+          tradeCount: result.trades.length,
+          totalCents: result.totalCents,
+          historical: true,
+          executable: false,
+          preferences: parsePreferences(preferences),
+          contributionCents: options.contributionCents,
+          contributionAccountId: options.contributionAccountId,
+          source: structuredClone(portfolio),
+          result,
+        };
+        const nextPlans = [saved, ...demoPlans];
+        persistDemo(preferences, nextPlans);
+        setDemoPlans(nextPlans);
+      } else {
+        const response = await requestJson<{ plan: SavedPlan }>('/api/plans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: planName.trim(),
+            preferences: parsePreferences(preferences),
+            contributionCents: options.contributionCents,
+            contributionAccountId: options.contributionAccountId,
+          }),
+        });
+        saved = response.plan;
+      }
+      if (epoch !== privateEpoch.current) return;
+      setPlans((previous) => [summarizePlan(saved), ...previous]);
+      setModal(null);
+      setNotice('Plan snapshot saved. You can find it in Saved plans.');
+      navigate('plans');
+    } catch (cause) {
+      handleRequestError(cause, 'Your plan could not be saved.');
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+  async function reloadPlans() {
+    if (mode === 'demo' || !privateReady) return;
+    const epoch = privateEpoch.current;
+    setPlansLoading(true);
+    setPlansError('');
+    try {
+      const response = await requestJson<{ plans: SavedPlanSummary[] }>('/api/plans');
+      if (epoch !== privateEpoch.current) return;
+      setPlans(response.plans);
+    } catch (cause) {
+      if (cause instanceof WorkspaceRequestError && cause.status === 401)
+        handleRequestError(cause, 'Please reconnect.');
+      else
+        setPlansError(
+          cause instanceof Error ? cause.message : 'Your saved history could not be loaded.',
+        );
+    } finally {
+      setPlansLoading(false);
+    }
+  }
+  async function inspectPlan(id: string) {
+    const epoch = privateEpoch.current;
+    setPlanBusy(true);
+    setError('');
+    try {
+      const plan =
+        mode === 'demo'
+          ? demoPlans.find((saved) => saved.id === id)
+          : (await requestJson<{ plan: SavedPlan }>(`/api/plans?id=${encodeURIComponent(id)}`))
+              .plan;
+      if (epoch !== privateEpoch.current) return;
+      if (!plan) throw new Error('This plan is no longer available. Reload Saved plans.');
+      setInspectedPlan(plan);
+    } catch (cause) {
+      handleRequestError(cause, 'This saved plan could not be opened.');
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+  async function removePlan(plan: SavedPlanSummary) {
+    const epoch = privateEpoch.current;
+    setPlanBusy(true);
+    setError('');
+    try {
+      if (mode === 'demo') {
+        const removed = demoPlans.find((saved) => saved.id === plan.id) || null;
+        const nextPlans = demoPlans.filter((saved) => saved.id !== plan.id);
+        persistDemo(preferences, nextPlans);
+        setDemoPlans(nextPlans);
+        setUndoPlan(removed);
+      } else await requestJson(`/api/plans/${encodeURIComponent(plan.id)}`, { method: 'DELETE' });
+      if (epoch !== privateEpoch.current) return;
+      setPlans((previous) => previous.filter((saved) => saved.id !== plan.id));
+      setPendingDelete(null);
+      setModal(null);
+      setNotice('Saved plan deleted.');
+    } catch (cause) {
+      handleRequestError(cause, 'The plan could not be deleted.');
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+  function undoDelete() {
+    if (!undoPlan) return;
+    try {
+      const next = [undoPlan, ...demoPlans];
+      persistDemo(preferences, next);
+      setDemoPlans(next);
+      setPlans(next.map(summarizePlan));
+      setUndoPlan(null);
+      setNotice('Sample plan restored.');
+    } catch {
+      setError('This browser could not restore the saved plan.');
+    }
+  }
+  async function deleteWorkspaceData() {
+    const epoch = privateEpoch.current;
+    setPlanBusy(true);
+    setError('');
+    try {
+      let warning: string | undefined;
+      if (mode === 'demo') localStorage.removeItem(demoStorageKey);
+      else {
+        const response = await requestJson<{ deleted: boolean; warning?: string }>(
+          '/api/workspace',
+          {
+            method: 'DELETE',
+          },
+        );
+        warning = response.warning;
+      }
+      if (epoch !== privateEpoch.current) return;
+      applyPreferences(defaultWorkspacePreferences);
+      setDemoPlans([]);
+      setPlans([]);
+      setPlansError('');
+      setOnboarded(false);
+      setUndoPlan(null);
+      setInspectedPlan(null);
+      setReviewed({ targets: false, reserve: false, classifications: false });
+      setModal(null);
+      setNotice('Saved preferences and plan history deleted.');
+      if (warning) setError(warning);
+    } catch (cause) {
+      handleRequestError(cause, 'Your saved workspace data could not be deleted.');
+    } finally {
+      setPlanBusy(false);
+    }
   }
   async function disconnect() {
     setLoading(true);
+    setError('');
+    requestController.current?.abort();
     try {
-      const res = await fetch('/api/auth/logout', { method: 'POST' });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || 'Could not disconnect. Please try again.');
-      setPortfolio(makeDemoPortfolio());
-      setStatus((prev) => ({ ...prev, connected: false }));
-      setSelected([]);
-      setClassifications({});
-      setAccountTypes({});
-      if (body.revoked === false) {
+      const body = await requestJson<{ revoked?: boolean; warning?: string }>('/api/auth/logout', {
+        method: 'POST',
+      });
+      clearPrivate();
+      if (body.warning) setError(body.warning);
+      else if (body.revoked === false)
         setError(
-          body.warning ||
-            'Local credentials were deleted, but revocation could not be confirmed. Remove Balance in your SnapTrade dashboard.',
+          'You are signed out. Remove Balance in your SnapTrade dashboard to confirm access has been revoked.',
         );
-      } else {
-        setNotice('Disconnected. You are back in the demo workspace.');
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not disconnect.');
+      else
+        setNotice('Disconnected from SnapTrade. Saved plans are retained for your next sign-in.');
+    } catch (cause) {
+      handleRequestError(cause, 'Could not disconnect.');
     } finally {
       setLoading(false);
     }
   }
   function freshness(account: Account) {
+    if (mode === 'demo') return 'Sample snapshot · Oct 14, 2026';
     if (!account.syncedAt) return 'Freshness unavailable';
-    return Date.now() - new Date(account.syncedAt).getTime() > 24 * 3600000
-      ? 'Data needs updating'
-      : portfolio.mode === 'demo'
-        ? 'Sample data'
-        : 'Snapshot available';
+    const age = Math.max(0, valuationTime - Date.parse(account.syncedAt));
+    if (!Number.isFinite(age)) return 'Freshness unavailable';
+    const relative =
+      age < 60000
+        ? 'less than a minute ago'
+        : age < 3600000
+          ? `${Math.floor(age / 60000)} min ago`
+          : age < 86400000
+            ? `${Math.floor(age / 3600000)} hr ago`
+            : `${Math.floor(age / 86400000)} days ago`;
+    return `${age > 86400000 ? 'Needs updating · ' : 'Synced '}${relative}`;
   }
 
   return (
@@ -451,7 +821,7 @@ export default function Dashboard() {
         <div className="workspace">
           <span className="workspace-avatar">{portfolio.mode === 'demo' ? 'A' : 'P'}</span>
           <div>
-            <strong>{portfolio.mode === 'demo' ? 'Alex’s workspace' : 'My workspace'}</strong>
+            <strong>{mode === 'demo' ? 'Sample workspace' : 'My workspace'}</strong>
             <span>Personal portfolio</span>
           </div>
           <LockKeyhole size={13} />
@@ -475,6 +845,14 @@ export default function Dashboard() {
             <GitCompareArrows size={19} />
             Rebalance
             <span className="nav-active-dot" />
+          </button>
+          <button
+            className={view === 'plans' ? 'nav-item active' : 'nav-item'}
+            onClick={() => navigate('plans')}
+            aria-current={view === 'plans' ? 'page' : undefined}
+          >
+            <Bookmark size={19} />
+            Saved plans<span className="nav-count">{plans.length}</span>
           </button>
           <button
             className={view === 'connections' ? 'nav-item active' : 'nav-item'}
@@ -543,14 +921,20 @@ export default function Dashboard() {
                   ? 'Portfolio'
                   : view === 'rebalance'
                     ? 'Rebalance'
-                    : 'Connections'}
+                    : view === 'plans'
+                      ? 'Saved plans'
+                      : 'Connections'}
               </strong>
             </span>
           </div>
           <div className="topbar-right">
             <span className={`mode-badge ${portfolio.mode === 'live' ? 'live' : ''}`}>
               <span />
-              {portfolio.mode === 'demo' ? 'Demo workspace' : 'Connected workspace'}
+              {mode === 'demo'
+                ? 'Sample workspace'
+                : status.connected
+                  ? 'Connected workspace'
+                  : 'Private workspace'}
             </span>
             <button
               className="help-button"
@@ -561,9 +945,9 @@ export default function Dashboard() {
             </button>
             <span
               className="profile-avatar"
-              aria-label={portfolio.mode === 'demo' ? 'Alex demo profile' : 'Your profile'}
+              aria-label={mode === 'demo' ? 'Sample profile' : 'Your profile'}
             >
-              {portfolio.mode === 'demo' ? 'AC' : 'ME'}
+              {mode === 'demo' ? 'S' : 'ME'}
             </span>
           </div>
         </header>
@@ -572,970 +956,1231 @@ export default function Dashboard() {
             <div className="banner error-banner" role="alert">
               <CircleHelp size={17} />
               <span>{error}</span>
+              {mode === 'live' && gate === 'ready' && (
+                <button onClick={() => void loadLive()}>
+                  Retry <RefreshCw size={13} />
+                </button>
+              )}
               <button aria-label="Dismiss error" onClick={() => setError('')}>
                 <X size={16} />
               </button>
             </div>
           )}
-          <div className="page-heading">
-            <div>
-              <div className="eyebrow">
-                {view === 'portfolio'
-                  ? 'THE BIG PICTURE'
-                  : view === 'rebalance'
-                    ? 'MAKE YOUR NEXT MOVE INTENTIONAL'
-                    : 'YOUR ACCOUNTS, TOGETHER'}
-              </div>
-              <h1>
-                {view === 'portfolio'
-                  ? 'Your portfolio, in perspective.'
-                  : view === 'rebalance'
-                    ? 'Find your balance.'
-                    : 'A more connected portfolio.'}
-              </h1>
-              <p>
-                {view === 'portfolio'
-                  ? 'See what you own. Understand the mix. Move forward with a plan.'
-                  : view === 'rebalance'
-                    ? 'Turn your target allocation into a practical plan, one account at a time.'
-                    : 'Connect once through SnapTrade. Get a clearer view across brokerages.'}
-              </p>
-            </div>
-            <button className="button secondary connect-button" onClick={() => setModal('connect')}>
-              <Plus size={16} />
-              Connect account
-            </button>
-          </div>
-
-          {canClassify && (
-            <div className="banner classification-banner">
-              <ShieldCheck size={17} />
-              <span>
-                Some holdings or account types need your classification. Only you can confirm how
-                they fit your plan.
-              </span>
-              <button onClick={() => setModal('classify')}>
-                Review classifications <ArrowRight size={13} />
-              </button>
-            </div>
+          {!privateReady &&
+            (gate === 'loading' ? (
+              <WorkspaceLoading />
+            ) : (
+              <WorkspaceGate
+                state={gate === 'signed-out' ? 'signed-out' : 'error'}
+                error={error}
+                configured={status.configured}
+                onRetry={() => void loadLive(true)}
+              />
+            ))}
+          {privateReady && sourcePortfolio.accounts.length === 0 && (
+            <WorkspaceGate
+              state="empty"
+              error=""
+              configured={status.configured}
+              onRetry={() => void loadLive()}
+            />
           )}
-          {view !== 'connections' && (
+          {privateReady && sourcePortfolio.accounts.length > 0 && (
             <>
-              <div className="account-filter" aria-label="Filter accounts">
+              <div className="page-heading">
+                <div>
+                  <div className="eyebrow">
+                    {view === 'portfolio'
+                      ? 'THE BIG PICTURE'
+                      : view === 'rebalance'
+                        ? 'MAKE YOUR NEXT MOVE INTENTIONAL'
+                        : view === 'plans'
+                          ? 'DECISIONS WORTH KEEPING'
+                          : 'YOUR ACCOUNTS, TOGETHER'}
+                  </div>
+                  <h1>
+                    {view === 'portfolio'
+                      ? 'Your portfolio, in perspective.'
+                      : view === 'rebalance'
+                        ? 'Find your balance.'
+                        : view === 'plans'
+                          ? 'A record of your reasoning.'
+                          : 'A more connected portfolio.'}
+                  </h1>
+                  <p>
+                    {view === 'portfolio'
+                      ? 'See what you own. Understand the mix. Move forward with a plan.'
+                      : view === 'rebalance'
+                        ? 'Turn your target allocation into a practical plan, one account at a time.'
+                        : view === 'plans'
+                          ? 'Revisit your saved simulations, with the original data and boundaries intact.'
+                          : 'Manage your shared accounts through SnapTrade. See the latest available brokerage snapshots.'}
+                  </p>
+                </div>
                 <button
-                  className={!selected.length ? 'filter-chip selected' : 'filter-chip'}
-                  onClick={() => setSelected([])}
+                  className="button secondary connect-button"
+                  onClick={() => setModal('connect')}
                 >
-                  <Landmark size={14} />
-                  All accounts <span>{portfolio.accounts.length}</span>
+                  <Plus size={16} />
+                  {mode === 'demo' ? 'Connect real accounts' : 'Manage connections'}
                 </button>
-                {portfolio.accounts.map((a) => (
-                  <button
-                    key={a.id}
-                    aria-pressed={selected.includes(a.id)}
-                    className={selected.includes(a.id) ? 'filter-chip selected' : 'filter-chip'}
-                    onClick={() => toggleAccount(a.id)}
-                  >
-                    <span
-                      className={`broker-dot ${brokerInitial(a.broker) === 'ib' ? 'red' : brokerInitial(a.broker) === 'W' ? 'gold' : ''}`}
-                    />
-                    {a.broker}
-                  </button>
-                ))}
-                <span className="filter-caption">
-                  <LockKeyhole size={12} />
-                  Read-only access
-                </span>
               </div>
-              {portfolio.mode === 'demo' && scenario !== 'normal' && (
-                <div className="banner scenario-banner">
-                  <Eye size={16} />
-                  <span>
-                    Edge case:{' '}
-                    {scenario === 'stale'
-                      ? 'one snapshot is 48 hours old'
-                      : scenario === 'currency'
-                        ? 'one account is denominated in CAD'
-                        : 'one holding has no price'}
-                    . Open Rebalance to inspect the guardrails.
-                  </span>
-                  <button onClick={() => changeScenario('normal')}>Reset demo</button>
-                </div>
-              )}
-              {portfolio.warnings.length > 0 && (
-                <div className="banner warning-banner" role="status">
-                  <CircleHelp size={16} />
-                  <span>{portfolio.warnings.join(' ')}</span>
-                </div>
-              )}
-            </>
-          )}
 
-          {view === 'portfolio' && (
-            <>
-              <div className="overview-top">
-                <section className="portfolio-hero" aria-label="Portfolio value">
-                  <div className="hero-top">
-                    <span className="hero-label">
-                      {valuesNeedReview ? 'KNOWN VALUE · NEEDS REVIEW' : 'TOTAL PORTFOLIO VALUE'}
+              {!onboarded && (
+                <section className="workspace-onboarding card" aria-label="Workspace setup">
+                  <div className="onboarding-title">
+                    <span className="onboarding-icon">
+                      <SlidersHorizontal size={21} />
                     </span>
-                    <span className="currency-badge">
-                      {cannotCombineValues ? 'Multiple currencies' : currency}
-                      <ChevronDown size={11} />
+                    <div>
+                      <h2>Make this workspace yours.</h2>
+                      <p>
+                        Choose your policy before saving your first plan. The starting mix is
+                        illustrative.
+                      </p>
+                    </div>
+                    <span className="onboarding-progress">
+                      {Object.values(reviewed).filter(Boolean).length} of 3 reviewed
                     </span>
                   </div>
-                  <div className="hero-value">
-                    {cannotCombineValues ? 'Separate by currency' : money(total, currency, 2)}
-                  </div>
-                  <div className="hero-sub">
-                    <span className="hero-line" />
-                    {cannotCombineValues
-                      ? 'Values in different currencies cannot be combined.'
-                      : valuesNeedReview
-                        ? 'Partial valuation: incomplete or unverified account data may be excluded.'
-                        : `${accounts.length} ${accounts.length === 1 ? 'account' : 'accounts'} working toward one bigger picture.`}
-                  </div>
-                  <div className="hero-bottom">
-                    <div>
-                      <span>{valuesNeedReview ? 'Priced holdings' : 'Invested'}</span>
-                      <strong>{cannotCombineValues ? '—' : money(total - cash, currency)}</strong>
-                    </div>
-                    <span className="hero-divider" />
-                    <div>
-                      <span>Reported cash</span>
-                      <strong>{mixed || valuesNeedReview ? '—' : money(cash, currency)}</strong>
-                    </div>
-                    <div className="hero-art" aria-hidden="true">
-                      <span />
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                  </div>
-                </section>
-                <section className="metric-card">
-                  <span className="metric-icon">
-                    <GitCompareArrows size={20} />
-                  </span>
-                  <div className="metric-label">
-                    Allocation drift
+                  <div className="onboarding-steps">
                     <button
-                      aria-label="How allocation drift is calculated"
-                      onClick={() => setModal('method')}
-                    >
-                      <CircleHelp size={13} />
-                    </button>
-                  </div>
-                  <div className="metric-value">
-                    {mixed || currentPlan.status === 'blocked' ? (
-                      '—'
-                    ) : (
-                      <>
-                        {currentPlan.driftBefore.toFixed(1)}
-                        <span>pp</span>
-                      </>
-                    )}
-                  </div>
-                  <span className="metric-tag">
-                    {currentPlan.status === 'blocked'
-                      ? 'Review data first'
-                      : currentPlan.driftBefore > 5
-                        ? 'Room to rebalance'
-                        : 'Close to your target'}
-                  </span>
-                  <p>Distance from your target mix</p>
-                </section>
-                <section className="metric-card">
-                  <span className="metric-icon gold">
-                    <LayersIcon />
-                  </span>
-                  <div className="metric-label">Portfolio holdings</div>
-                  <div className="metric-value">
-                    {distinct}
-                    <span>assets</span>
-                  </div>
-                  <div className="asset-mini">
-                    <span>US</span>
-                    <span>INTL</span>
-                    <span>BOND</span>
-                  </div>
-                  <p>
-                    Across {accounts.length}{' '}
-                    {accounts.length === 1 ? 'brokerage account' : 'brokerage accounts'}
-                  </p>
-                </section>
-              </div>
-              <div className="overview-middle">
-                <section className="card allocation-card">
-                  <div className="section-heading">
-                    <div>
-                      <h2>Your allocation</h2>
-                      <p>A clearer picture of where your money lives.</p>
-                    </div>
-                    <button
-                      className="text-button"
                       onClick={() => {
-                        setDraftTargets(targets.map((t) => ({ ...t })));
+                        setDraftTargets(targets.map((target) => ({ ...target })));
                         setModal('targets');
                       }}
                     >
-                      Edit targets <SlidersHorizontal size={14} />
+                      {reviewed.targets ? <Check size={17} /> : <span>1</span>}
+                      <div>
+                        <strong>Review targets</strong>
+                        <small>Choose a mix that adds up to 100%.</small>
+                      </div>
+                      <ChevronRight size={16} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setReviewed((previous) => ({ ...previous, reserve: true }));
+                        navigate('rebalance');
+                        requestAnimationFrame(() =>
+                          document
+                            .querySelector<HTMLInputElement>(
+                              '[aria-label="Cash reserve per account"]',
+                            )
+                            ?.focus(),
+                        );
+                      }}
+                    >
+                      {reviewed.reserve ? <Check size={17} /> : <span>2</span>}
+                      <div>
+                        <strong>Review cash reserve</strong>
+                        <small>Protect cash in every account.</small>
+                      </div>
+                      <ChevronRight size={16} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (canClassify) setModal('classify');
+                        else {
+                          setReviewed((previous) => ({ ...previous, classifications: true }));
+                          setNotice(
+                            'Holdings use supported asset classes. Review individual positions below.',
+                          );
+                        }
+                      }}
+                    >
+                      {reviewed.classifications ? <Check size={17} /> : <span>3</span>}
+                      <div>
+                        <strong>Review classifications</strong>
+                        <small>
+                          {canClassify
+                            ? 'Confirm unknown holdings and tax types.'
+                            : 'Check the assets behind your allocation.'}
+                        </small>
+                      </div>
+                      <ChevronRight size={16} />
                     </button>
                   </div>
-                  {cannotCombineValues ? (
-                    <div className="empty-state">
-                      <Landmark size={28} />
-                      <h3>Keep currencies in their own lane.</h3>
-                      <p>
-                        Select accounts and holdings in one currency. Balance does not invent an
-                        exchange rate.
-                      </p>
-                    </div>
-                  ) : currentPlan.status === 'blocked' || valuesNeedReview || chartCash < 0 ? (
-                    <div className="empty-state">
-                      <ShieldCheck size={28} />
-                      <h3>Complete inputs. Clearer allocation.</h3>
-                      <p>
-                        {currentPlan.blockers[0] ||
-                          (chartCash < 0
-                            ? 'The requested reserves exceed current cash. Review the required sales in Rebalance before comparing weights.'
-                            : 'Resolve incomplete account values before comparing allocation percentages.')}
-                      </p>
-                      <button className="text-button" onClick={() => navigate('rebalance')}>
-                        Review planning inputs <ArrowRight size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="allocation-body">
-                      <AllocationRing
-                        allocations={chartAllocation}
-                        cashPercent={chartCashPercent}
-                        planned={showingPlanned}
-                      />
-                      <div className="allocation-legend">
-                        <div className="segmented" aria-label="Allocation comparison">
-                          <button
-                            className={!showingPlanned ? 'selected' : ''}
-                            onClick={() => setComparison('current')}
-                          >
-                            Before plan
-                          </button>
-                          <button
-                            className={showingPlanned ? 'selected' : ''}
-                            onClick={() => setComparison('planned')}
-                          >
-                            After plan
-                          </button>
-                        </div>
-                        {chartAllocation
-                          .filter((a) => a.valueCents > 0 || a.targetPercent > 0)
-                          .map((a) => (
-                            <div className="legend-row" key={a.assetClass}>
-                              <span
-                                className="color-dot"
-                                style={{ background: classes[a.assetClass].color }}
-                              />
-                              <div>
-                                <strong>{classes[a.assetClass].name}</strong>
-                                <span>Target {a.targetPercent}%</span>
-                              </div>
-                              <b>{pct(a.percent)}</b>
-                            </div>
-                          ))}
-                        <div className="legend-row cash-row">
-                          <span className="color-dot" style={{ background: '#e7e8e1' }} />
-                          <div>
-                            <strong>Investable cash</strong>
-                            <span>{money(protectedCash, currency, 2)} reserve excluded</span>
-                          </div>
-                          <b>{pct(chartCashPercent)}</b>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {currentPlan.status === 'ready' && (
-                    <p className="inline-note">
-                      Both views use a {money(currentPlan.totalCents, currency, 2)} planning base
-                      after reserves
-                      {options.contributionCents > 0
-                        ? `, including ${money(options.contributionCents, currency, 2)} hypothetical cash`
-                        : ''}
-                      .
+                  <div className="onboarding-bottom">
+                    <p>
+                      {mode === 'demo'
+                        ? 'Sample preferences stay in this browser. You can explore the simulation before saving.'
+                        : 'Your preferences are saved privately to your connected workspace.'}
                     </p>
-                  )}
-                  <div className="card-footnote">
-                    <span className="status-dot" />
-                    {portfolio.mode === 'demo'
-                      ? 'Illustrative holdings · no market feed'
-                      : 'Brokerage snapshots · prices may be delayed'}
-                    <button onClick={() => setModal('method')}>
-                      How we calculate <ArrowUpRight size={12} />
-                    </button>
-                  </div>
-                </section>
-                <section className="insight-card">
-                  <span className="eyebrow">
-                    <Sparkles size={14} />A MOMENT OF CLARITY
-                  </span>
-                  <h2>
-                    {mixed ? (
-                      'Different currencies.<br />Different plans.'
-                    ) : usPercent > targetUs + 5 ? (
-                      <>
-                        A little heavy
-                        <br />
-                        on home turf.
-                      </>
-                    ) : (
-                      <>
-                        Your next move,
-                        <br />
-                        with perspective.
-                      </>
-                    )}
-                  </h2>
-                  <p>
-                    {mixed ? (
-                      'Review accounts in the same currency to create a plan with honest cash constraints.'
-                    ) : usPercent > targetUs + 5 ? (
-                      <>
-                        US equities make up <strong>{pct(usPercent)}</strong> of your planning base.
-                        Your target is {targetUs}%. A few considered moves can bring things closer.
-                      </>
-                    ) : (
-                      'See how your existing cash and holdings can work together to get closer to your targets.'
-                    )}
-                  </p>
-                  <div className="insight-rule">
-                    <ShieldCheck size={17} />
-                    <span>
-                      Cash-aware. Whole shares.
-                      <br />
-                      You stay in control.
-                    </span>
-                  </div>
-                  <button className="button primary" onClick={() => navigate('rebalance')}>
-                    Build a rebalance plan <ArrowRight size={17} />
-                  </button>
-                  <span className="insight-caption">Simulate first. No orders placed.</span>
-                </section>
-              </div>
-              <section className="card holdings-card">
-                <div className="section-heading">
-                  <div>
-                    <h2>
-                      Your holdings <span className="count-badge">{holdings.length}</span>
-                    </h2>
-                    <p>Every position, without the tab switching.</p>
-                  </div>
-                  <div className="table-tools">
-                    <label className="search-box">
-                      <Search size={15} />
-                      <input
-                        aria-label="Search holdings"
-                        placeholder="Search holdings"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                      />
-                      {query && (
-                        <button aria-label="Clear search" onClick={() => setQuery('')}>
-                          <X size={13} />
-                        </button>
-                      )}
-                    </label>
                     <button
-                      className="icon-button bordered"
-                      aria-label={
-                        sort === 'value' ? 'Sort holdings alphabetically' : 'Sort holdings by value'
+                      className="button primary small-button"
+                      disabled={
+                        savingPreferences ||
+                        !validPreferences ||
+                        !Object.values(reviewed).every(Boolean)
                       }
-                      onClick={() => setSort(sort === 'value' ? 'symbol' : 'value')}
+                      onClick={() => void savePreferences()}
                     >
-                      <SlidersHorizontal size={16} />
+                      {savingPreferences ? (
+                        <LoaderCircle className="spin" size={15} />
+                      ) : (
+                        <Save size={15} />
+                      )}
+                      {savingPreferences ? 'Saving preferences…' : 'Save workspace preferences'}
                     </button>
                   </div>
-                </div>
-                <div className="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th scope="col">ASSET</th>
-                        <th scope="col">ACCOUNT</th>
-                        <th scope="col" className="numeric">
-                          SHARES
-                        </th>
-                        <th scope="col" className="numeric">
-                          PRICE
-                        </th>
-                        <th scope="col" className="numeric">
-                          VALUE <ArrowDown size={10} />
-                        </th>
-                        <th scope="col" className="numeric">
-                          WEIGHT
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {holdings.map((p) => (
-                        <tr key={`${p.account.id}-${p.id}`}>
-                          <td>
-                            <div className="asset-cell">
-                              <span
-                                className={`asset-icon ${p.symbol === 'AAPL' ? 'apple' : ''}`}
-                                style={{
-                                  background: classes[p.assetClass].tint,
-                                  color: classes[p.assetClass].color,
-                                }}
-                              >
-                                {p.symbol === 'AAPL' ? (
-                                  'a'
-                                ) : p.symbol === 'MSFT' ? (
-                                  'm'
-                                ) : p.symbol === 'NVDA' ? (
-                                  'n'
-                                ) : (
-                                  <span>{classes[p.assetClass].short.slice(0, 2)}</span>
-                                )}
-                              </span>
-                              <div>
-                                <strong>{p.symbol}</strong>
-                                <span>{p.name}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="account-cell">
-                              <span
-                                className={`broker-dot ${brokerInitial(p.account.broker) === 'ib' ? 'red' : brokerInitial(p.account.broker) === 'W' ? 'gold' : ''}`}
-                              />
-                              <span>
-                                {p.account.broker}
-                                <small>{p.account.name}</small>
-                              </span>
-                            </div>
-                          </td>
-                          <td className="numeric">
-                            {p.quantity.toLocaleString('en-US', { maximumFractionDigits: 6 })}
-                          </td>
-                          <td className="numeric">
-                            {!hasPositionValue(p) ? (
-                              <span className="missing-price">Unavailable</span>
-                            ) : (
-                              money(p.priceCents!, p.currency, 2)
-                            )}
-                          </td>
-                          <td className="numeric value-cell">
-                            {!hasPositionValue(p) ? '—' : money(p.value, p.currency, 2)}
-                          </td>
-                          <td className="numeric">
-                            <div className="weight-cell">
-                              <span>
-                                {cannotCombineValues ||
-                                valuesNeedReview ||
-                                total <= 0 ||
-                                !hasPositionValue(p)
-                                  ? '—'
-                                  : pct((p.value / total) * 100)}
-                              </span>
-                              <i>
-                                <b
-                                  style={{
-                                    width: `${Math.min(100, !cannotCombineValues && !valuesNeedReview && total > 0 ? (p.value / total) * 100 : 0)}%`,
-                                    background: classes[p.assetClass].color,
-                                  }}
-                                />
-                              </i>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {holdings.length === 0 && (
-                  <div className="empty-state">
-                    <Search size={24} />
-                    <h3>No holdings found</h3>
-                    <p>Try another symbol, fund name, or brokerage.</p>
-                  </div>
-                )}
-                <div className="table-footer">
-                  <span>Showing {holdings.length} positions · cash shown separately</span>
+                </section>
+              )}
+              {onboarded && (
+                <div className={`preference-status ${preferencesDirty ? 'has-changes' : ''}`}>
                   <span>
-                    <LockKeyhole size={12} />
-                    Your data stays yours
+                    <ShieldCheck size={15} />
+                    {preferencesDirty
+                      ? 'You have unsaved workspace preferences.'
+                      : mode === 'demo'
+                        ? 'Sample preferences saved in this browser.'
+                        : 'Workspace preferences saved securely.'}
                   </span>
-                </div>
-              </section>
-            </>
-          )}
-
-          {view === 'rebalance' && (
-            <div className="rebalance-layout">
-              <div className="rebalance-main">
-                <section className="card target-card">
-                  <div className="section-heading">
-                    <div>
-                      <span className="step-label">01 / SET YOUR DIRECTION</span>
-                      <h2>The mix you’re working toward.</h2>
-                      <p>Choose your targets. Balance will work within your account constraints.</p>
-                    </div>
+                  {preferencesDirty && (
                     <button
-                      className="text-button"
-                      onClick={() => {
-                        setDraftTargets(targets.map((t) => ({ ...t })));
-                        setModal('targets');
-                      }}
+                      className="button secondary small-button"
+                      disabled={savingPreferences || planBusy || loading || !validPreferences}
+                      onClick={() => void savePreferences()}
                     >
-                      Edit targets <SlidersHorizontal size={14} />
+                      {savingPreferences ? (
+                        <LoaderCircle className="spin" size={14} />
+                      ) : (
+                        <Save size={14} />
+                      )}
+                      {savingPreferences ? 'Saving preferences…' : 'Save workspace preferences'}
                     </button>
-                  </div>
-                  <div className="target-bar">
-                    {targets.map((t) => (
-                      <span
-                        key={t.assetClass}
-                        style={{ width: `${t.percent}%`, background: classes[t.assetClass].color }}
-                      />
-                    ))}
-                  </div>
-                  <div className="target-values">
-                    {targets.map((t) => (
-                      <div key={t.assetClass}>
-                        <span
-                          className="color-dot"
-                          style={{ background: classes[t.assetClass].color }}
-                        />
-                        <span>{classes[t.assetClass].name}</span>
-                        <strong>{t.percent}%</strong>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="inline-note">
-                    Targets apply to assets plus cash, less your protected cash reserve. Unspent
-                    cash can leave the mix below 100%.
-                  </p>
-                </section>
-                <section className="card constraints-card">
-                  <div className="section-heading">
-                    <div>
-                      <span className="step-label">02 / MAKE IT PRACTICAL</span>
-                      <h2>Your money. Your boundaries.</h2>
-                    </div>
-                    <ShieldCheck size={22} className="muted-icon" />
-                  </div>
-                  <div className="form-grid">
-                    <label className="field-label">
-                      Keep cash per account
-                      <div className="money-input">
-                        <span>{currency}</span>
-                        <input
-                          aria-label="Cash reserve per account"
-                          type="number"
-                          min="0"
-                          max="100000000"
-                          step="50"
-                          value={reserve}
-                          onChange={(e) => setReserve(e.target.value)}
-                        />
-                      </div>
-                      <small>Protected from buying recommendations.</small>
-                    </label>
-                    <label className="field-label">
-                      Minimum trade value
-                      <div className="money-input">
-                        <span>{currency}</span>
-                        <input
-                          aria-label="Minimum trade value"
-                          type="number"
-                          min="1"
-                          max="10000000"
-                          step="25"
-                          value={minimum}
-                          onChange={(e) => setMinimum(e.target.value)}
-                        />
-                      </div>
-                      <small>Skip tiny, low-impact moves.</small>
-                    </label>
-                    <label className="field-label">
-                      Hypothetical new cash
-                      <div className="money-input">
-                        <span>{currency}</span>
-                        <input
-                          aria-label="Hypothetical contribution"
-                          type="number"
-                          min="0"
-                          max="100000000"
-                          step="100"
-                          value={contribution}
-                          onChange={(e) => setContribution(e.target.value)}
-                        />
-                      </div>
-                      <small>A simulation. No money is transferred.</small>
-                    </label>
-                    <label className="field-label">
-                      Add new cash to
-                      <select
-                        aria-label="Contribution account"
-                        value={selectedContributionAccount}
-                        onChange={(e) => setContributionAccount(e.target.value)}
+                  )}
+                </div>
+              )}
+              {hasUnverified && (
+                <div className="banner classification-banner">
+                  <ShieldCheck size={17} />
+                  <span>
+                    Some holdings or account types need your classification. Only you can confirm
+                    how they fit your plan.
+                  </span>
+                  <button onClick={() => setModal('classify')}>
+                    Review classifications <ArrowRight size={13} />
+                  </button>
+                </div>
+              )}
+              {view !== 'connections' && view !== 'plans' && (
+                <>
+                  <div className="account-filter" aria-label="Filter accounts">
+                    <button
+                      className={!selected.length ? 'filter-chip selected' : 'filter-chip'}
+                      onClick={() => setSelected([])}
+                    >
+                      <Landmark size={14} />
+                      All accounts <span>{portfolio.accounts.length}</span>
+                    </button>
+                    {portfolio.accounts.map((a) => (
+                      <button
+                        key={a.id}
+                        aria-pressed={selected.includes(a.id)}
+                        className={selected.includes(a.id) ? 'filter-chip selected' : 'filter-chip'}
+                        onClick={() => toggleAccount(a.id)}
                       >
-                        {accounts.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.broker} · {a.name}
-                          </option>
-                        ))}
-                      </select>
-                      <small>Cash stays inside the chosen account.</small>
-                    </label>
+                        <span
+                          className={`broker-dot ${brokerInitial(a.broker) === 'ib' ? 'red' : brokerInitial(a.broker) === 'W' ? 'gold' : ''}`}
+                        />
+                        {a.broker}
+                      </button>
+                    ))}
+                    <span className="filter-caption">
+                      <LockKeyhole size={12} />
+                      Read-only access
+                    </span>
                   </div>
-                  <label className="toggle-row">
-                    <div>
-                      <strong>Allow sales in taxable accounts</strong>
-                      <span>Sales may create taxable gains. Tax impact is not estimated.</span>
+                  {portfolio.mode === 'demo' && scenario !== 'normal' && (
+                    <div className="banner scenario-banner">
+                      <Eye size={16} />
+                      <span>
+                        Edge case:{' '}
+                        {scenario === 'stale'
+                          ? 'one snapshot is 48 hours old'
+                          : scenario === 'currency'
+                            ? 'one account is denominated in CAD'
+                            : 'one holding has no price'}
+                        . Open Rebalance to inspect the guardrails.
+                      </span>
+                      <button onClick={() => changeScenario('normal')}>Reset demo</button>
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={allowTaxableSales}
-                      onChange={(e) => setAllowTaxableSales(e.target.checked)}
-                    />
-                    <span className="switch" aria-hidden="true" />
-                  </label>
-                  <div className="constraint-pills">
-                    <span>
-                      <Check size={13} />
-                      Whole shares only
-                    </span>
-                    <span>
-                      <Check size={13} />
-                      No account transfers
-                    </span>
-                    <span>
-                      <Check size={13} />
-                      No borrowing
-                    </span>
-                  </div>
-                </section>
-                <CashProof
-                  accounts={accounts}
-                  plan={currentPlan}
-                  contributionCents={options.contributionCents}
-                  contributionAccountId={options.contributionAccountId}
-                  currency={currency}
-                />
-                <section className="card plan-trades">
-                  <div className="section-heading">
-                    <div>
-                      <span className="step-label">03 / REVIEW EVERY MOVE</span>
-                      <h2>
+                  )}
+                  {portfolio.warnings.length > 0 && (
+                    <div className="banner warning-banner" role="status">
+                      <CircleHelp size={16} />
+                      <span>{portfolio.warnings.join(' ')}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {view === 'portfolio' && (
+                <>
+                  <div className="overview-top">
+                    <section className="portfolio-hero" aria-label="Portfolio value">
+                      <div className="hero-top">
+                        <span className="hero-label">
+                          {valuesNeedReview
+                            ? 'KNOWN VALUE · NEEDS REVIEW'
+                            : 'TOTAL PORTFOLIO VALUE'}
+                        </span>
+                        <span className="currency-badge">
+                          {cannotCombineValues ? 'Multiple currencies' : currency}
+                          <ChevronDown size={11} />
+                        </span>
+                      </div>
+                      <div className="hero-value">
+                        {cannotCombineValues ? 'Separate by currency' : money(total, currency, 2)}
+                      </div>
+                      <div className="hero-sub">
+                        <span className="hero-line" />
+                        {cannotCombineValues
+                          ? 'Values in different currencies cannot be combined.'
+                          : valuesNeedReview
+                            ? 'Partial valuation: incomplete or unverified account data may be excluded.'
+                            : `${accounts.length} ${accounts.length === 1 ? 'account' : 'accounts'} working toward one bigger picture.`}
+                      </div>
+                      <div className="hero-bottom">
+                        <div>
+                          <span>{valuesNeedReview ? 'Priced holdings' : 'Invested'}</span>
+                          <strong>
+                            {cannotCombineValues ? '—' : money(total - cash, currency)}
+                          </strong>
+                        </div>
+                        <span className="hero-divider" />
+                        <div>
+                          <span>Reported cash</span>
+                          <strong>{mixed || valuesNeedReview ? '—' : money(cash, currency)}</strong>
+                        </div>
+                        <div className="hero-art" aria-hidden="true">
+                          <span />
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                      </div>
+                    </section>
+                    <section className="metric-card">
+                      <span className="metric-icon">
+                        <GitCompareArrows size={20} />
+                      </span>
+                      <div className="metric-label">
+                        Allocation drift
+                        <button
+                          aria-label="How allocation drift is calculated"
+                          onClick={() => setModal('method')}
+                        >
+                          <CircleHelp size={13} />
+                        </button>
+                      </div>
+                      <div className="metric-value">
+                        {mixed || currentPlan.status === 'blocked' ? (
+                          '—'
+                        ) : (
+                          <>
+                            {currentPlan.driftBefore.toFixed(1)}
+                            <span>pp</span>
+                          </>
+                        )}
+                      </div>
+                      <span className="metric-tag">
                         {currentPlan.status === 'blocked'
-                          ? 'Let’s resolve the data first.'
-                          : 'A plan you can understand.'}
+                          ? 'Review data first'
+                          : currentPlan.driftBefore > 5
+                            ? 'Room to rebalance'
+                            : 'Close to your target'}
+                      </span>
+                      <p>Distance from your target mix</p>
+                    </section>
+                    <section className="metric-card">
+                      <span className="metric-icon gold">
+                        <LayersIcon />
+                      </span>
+                      <div className="metric-label">Portfolio holdings</div>
+                      <div className="metric-value">
+                        {distinct}
+                        <span>assets</span>
+                      </div>
+                      <div className="asset-mini">
+                        <span>US</span>
+                        <span>INTL</span>
+                        <span>BOND</span>
+                      </div>
+                      <p>
+                        Across {accounts.length}{' '}
+                        {accounts.length === 1 ? 'brokerage account' : 'brokerage accounts'}
+                      </p>
+                    </section>
+                  </div>
+                  <div className="overview-middle">
+                    <section className="card allocation-card">
+                      <div className="section-heading">
+                        <div>
+                          <h2>Your allocation</h2>
+                          <p>A clearer picture of where your money lives.</p>
+                        </div>
+                        <button
+                          className="text-button"
+                          onClick={() => {
+                            setDraftTargets(targets.map((t) => ({ ...t })));
+                            setModal('targets');
+                          }}
+                        >
+                          Edit targets <SlidersHorizontal size={14} />
+                        </button>
+                      </div>
+                      {cannotCombineValues ? (
+                        <div className="empty-state">
+                          <Landmark size={28} />
+                          <h3>Keep currencies in their own lane.</h3>
+                          <p>
+                            Select accounts and holdings in one currency. Balance does not invent an
+                            exchange rate.
+                          </p>
+                        </div>
+                      ) : accounts.some((account) =>
+                          account.positions.some(
+                            (position) => !position.cashEquivalent && !hasPositionValue(position),
+                          ),
+                        ) || chartCash < 0 ? (
+                        <div className="empty-state">
+                          <ShieldCheck size={28} />
+                          <h3>Complete inputs. Clearer allocation.</h3>
+                          <p>
+                            {currentPlan.blockers[0] ||
+                              (chartCash < 0
+                                ? 'The requested reserves exceed current cash. Review the required sales in Rebalance before comparing weights.'
+                                : 'Resolve incomplete account values before comparing allocation percentages.')}
+                          </p>
+                          <button className="text-button" onClick={() => navigate('rebalance')}>
+                            Review planning inputs <ArrowRight size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="allocation-body">
+                          <AllocationRing
+                            allocations={chartAllocation}
+                            cashPercent={chartCashPercent}
+                            planned={showingPlanned}
+                          />
+                          <div className="allocation-legend">
+                            <div className="segmented" aria-label="Allocation comparison">
+                              <button
+                                className={!showingPlanned ? 'selected' : ''}
+                                onClick={() => setComparison('current')}
+                              >
+                                Current holdings
+                              </button>
+                              <button
+                                className={showingPlanned ? 'selected' : ''}
+                                disabled={currentPlan.status !== 'ready'}
+                                onClick={() => setComparison('planned')}
+                              >
+                                After simulation
+                              </button>
+                            </div>
+                            {chartAllocation
+                              .filter((a) => a.valueCents > 0 || a.targetPercent > 0)
+                              .map((a) => (
+                                <div className="legend-row" key={a.assetClass}>
+                                  <span
+                                    className="color-dot"
+                                    style={{ background: classes[a.assetClass].color }}
+                                  />
+                                  <div>
+                                    <strong>{classes[a.assetClass].name}</strong>
+                                    <span>Target {a.targetPercent}%</span>
+                                  </div>
+                                  <b>{pct(a.percent)}</b>
+                                </div>
+                              ))}
+                            <div className="legend-row cash-row">
+                              <span className="color-dot" style={{ background: '#e7e8e1' }} />
+                              <div>
+                                <strong>
+                                  {showingPlanned ? 'Investable cash' : 'Reported cash'}
+                                </strong>
+                                <span>
+                                  {showingPlanned
+                                    ? `${money(protectedCash, currency, 2)} reserve excluded`
+                                    : 'Included in current holdings'}
+                                </span>
+                              </div>
+                              <b>{pct(chartCashPercent)}</b>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {showingPlanned && currentPlan.status === 'ready' && (
+                        <p className="inline-note">
+                          The simulation uses a {money(currentPlan.totalCents, currency, 2)}{' '}
+                          planning base after reserves
+                          {options.contributionCents > 0
+                            ? `, including ${money(options.contributionCents, currency, 2)} hypothetical cash`
+                            : ''}
+                          .
+                        </p>
+                      )}
+                      <div className="card-footnote">
+                        <span className="status-dot" />
+                        {portfolio.mode === 'demo'
+                          ? 'Illustrative holdings · no market feed'
+                          : 'Brokerage snapshots · prices may be delayed'}
+                        <button onClick={() => setModal('method')}>
+                          How we calculate <ArrowUpRight size={12} />
+                        </button>
+                      </div>
+                    </section>
+                    <section className="insight-card">
+                      <span className="eyebrow">
+                        <Sparkles size={14} />A MOMENT OF CLARITY
+                      </span>
+                      <h2>
+                        {mixed ? (
+                          'Different currencies.<br />Different plans.'
+                        ) : usPercent > targetUs + 5 ? (
+                          <>
+                            A little heavy
+                            <br />
+                            on home turf.
+                          </>
+                        ) : (
+                          <>
+                            Your next move,
+                            <br />
+                            with perspective.
+                          </>
+                        )}
                       </h2>
                       <p>
-                        {currentPlan.status === 'blocked'
-                          ? 'Balance pauses recommendations when the inputs can’t support them.'
-                          : `${currentPlan.trades.length} proposed moves. Indicative prices. No orders placed.`}
+                        {mixed ? (
+                          'Review accounts in the same currency to create a plan with honest cash constraints.'
+                        ) : usPercent > targetUs + 5 ? (
+                          <>
+                            US equities make up <strong>{pct(usPercent)}</strong> of your planning
+                            base. Your target is {targetUs}%. A few considered moves can bring
+                            things closer.
+                          </>
+                        ) : (
+                          'See how your existing cash and holdings can work together to get closer to your targets.'
+                        )}
+                      </p>
+                      <div className="insight-rule">
+                        <ShieldCheck size={17} />
+                        <span>
+                          Cash-aware. Whole shares.
+                          <br />
+                          You stay in control.
+                        </span>
+                      </div>
+                      <button className="button primary" onClick={() => navigate('rebalance')}>
+                        Build a rebalance plan <ArrowRight size={17} />
+                      </button>
+                      <span className="insight-caption">Simulate first. No orders placed.</span>
+                    </section>
+                  </div>
+                  <section className="card holdings-card">
+                    <div className="section-heading">
+                      <div>
+                        <h2>
+                          Your holdings <span className="count-badge">{holdings.length}</span>
+                        </h2>
+                        <p>Every position, without the tab switching.</p>
+                      </div>
+                      <div className="table-tools">
+                        <label className="search-box">
+                          <Search size={15} />
+                          <input
+                            aria-label="Search holdings"
+                            placeholder="Search holdings"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                          />
+                          {query && (
+                            <button aria-label="Clear search" onClick={() => setQuery('')}>
+                              <X size={13} />
+                            </button>
+                          )}
+                        </label>
+                        <button
+                          className="icon-button bordered"
+                          aria-label={
+                            sort === 'value'
+                              ? 'Sort holdings alphabetically'
+                              : 'Sort holdings by value'
+                          }
+                          onClick={() => setSort(sort === 'value' ? 'symbol' : 'value')}
+                        >
+                          <SlidersHorizontal size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      className="table-scroll"
+                      tabIndex={0}
+                      role="region"
+                      aria-label="Holdings table, scroll horizontally to see all columns"
+                    >
+                      <table>
+                        <thead>
+                          <tr>
+                            <th scope="col">ASSET</th>
+                            <th scope="col">ACCOUNT</th>
+                            <th scope="col" className="numeric">
+                              SHARES
+                            </th>
+                            <th scope="col" className="numeric">
+                              PRICE
+                            </th>
+                            <th scope="col" className="numeric">
+                              VALUE <ArrowDown size={10} />
+                            </th>
+                            <th scope="col" className="numeric">
+                              WEIGHT
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {holdings.map((p) => (
+                            <tr key={`${p.account.id}-${p.id}`}>
+                              <td>
+                                <div className="asset-cell">
+                                  <span
+                                    className={`asset-icon asset-${p.assetClass} ${p.symbol === 'AAPL' ? 'apple' : ''}`}
+                                    style={{
+                                      background: classes[p.assetClass].tint,
+                                      color: classes[p.assetClass].color,
+                                    }}
+                                  >
+                                    {p.symbol === 'AAPL' ? (
+                                      'a'
+                                    ) : p.symbol === 'MSFT' ? (
+                                      'm'
+                                    ) : p.symbol === 'NVDA' ? (
+                                      'n'
+                                    ) : (
+                                      <span>{classes[p.assetClass].short.slice(0, 2)}</span>
+                                    )}
+                                  </span>
+                                  <div>
+                                    <strong>{p.symbol}</strong>
+                                    <span>{p.name}</span>
+                                    <small className="holding-class">
+                                      {classes[p.assetClass].name}
+                                      {p.assetClass === 'unclassified'
+                                        ? ' · review before planning'
+                                        : ''}
+                                    </small>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div className="account-cell">
+                                  <span
+                                    className={`broker-dot ${brokerInitial(p.account.broker) === 'ib' ? 'red' : brokerInitial(p.account.broker) === 'W' ? 'gold' : ''}`}
+                                  />
+                                  <span>
+                                    {p.account.broker}
+                                    <small>{p.account.name}</small>
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="numeric">
+                                {p.quantity.toLocaleString('en-US', { maximumFractionDigits: 6 })}
+                              </td>
+                              <td className="numeric">
+                                {!hasPositionValue(p) ? (
+                                  <span className="missing-price">Unavailable</span>
+                                ) : (
+                                  money(p.priceCents!, p.currency, 2)
+                                )}
+                              </td>
+                              <td className="numeric value-cell">
+                                {!hasPositionValue(p) ? '—' : money(p.value, p.currency, 2)}
+                              </td>
+                              <td className="numeric">
+                                <div className="weight-cell">
+                                  <span>
+                                    {cannotCombineValues ||
+                                    valuesNeedReview ||
+                                    total <= 0 ||
+                                    !hasPositionValue(p)
+                                      ? '—'
+                                      : pct((p.value / total) * 100)}
+                                  </span>
+                                  <i>
+                                    <b
+                                      style={{
+                                        width: `${Math.min(100, !cannotCombineValues && !valuesNeedReview && total > 0 ? (p.value / total) * 100 : 0)}%`,
+                                        background: classes[p.assetClass].color,
+                                      }}
+                                    />
+                                  </i>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {holdings.length === 0 && (
+                      <div className="empty-state">
+                        <Search size={24} />
+                        <h3>No holdings found</h3>
+                        <p>Try another symbol, fund name, or brokerage.</p>
+                      </div>
+                    )}
+                    <div className="table-footer">
+                      <span>Showing {holdings.length} positions · cash shown separately</span>
+                      <span>
+                        <LockKeyhole size={12} />
+                        Your data stays yours
+                      </span>
+                    </div>
+                  </section>
+                </>
+              )}
+
+              {view === 'rebalance' && (
+                <div className="rebalance-layout">
+                  <div className="rebalance-main">
+                    <section className="card target-card">
+                      <div className="section-heading">
+                        <div>
+                          <span className="step-label">01 / SET YOUR DIRECTION</span>
+                          <h2>The mix you’re working toward.</h2>
+                          <p>
+                            Choose your targets. Balance will work within your account constraints.
+                          </p>
+                        </div>
+                        <button
+                          className="text-button"
+                          onClick={() => {
+                            setDraftTargets(targets.map((t) => ({ ...t })));
+                            setModal('targets');
+                          }}
+                        >
+                          Edit targets <SlidersHorizontal size={14} />
+                        </button>
+                      </div>
+                      <div className="target-bar">
+                        {targets.map((t) => (
+                          <span
+                            key={t.assetClass}
+                            style={{
+                              width: `${t.percent}%`,
+                              background: classes[t.assetClass].color,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <div className="target-values">
+                        {targets.map((t) => (
+                          <div key={t.assetClass}>
+                            <span
+                              className="color-dot"
+                              style={{ background: classes[t.assetClass].color }}
+                            />
+                            <span>{classes[t.assetClass].name}</span>
+                            <strong>{t.percent}%</strong>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="inline-note">
+                        Targets apply to assets plus cash, less your protected cash reserve. Unspent
+                        cash can leave the mix below 100%.
+                      </p>
+                    </section>
+                    <section className="card constraints-card">
+                      <div className="section-heading">
+                        <div>
+                          <span className="step-label">02 / MAKE IT PRACTICAL</span>
+                          <h2>Your money. Your boundaries.</h2>
+                        </div>
+                        <ShieldCheck size={22} className="muted-icon" />
+                      </div>
+                      <div className="form-grid">
+                        <label className="field-label">
+                          Keep cash per account
+                          <div className="money-input">
+                            <span>{currency}</span>
+                            <input
+                              aria-label="Cash reserve per account"
+                              type="number"
+                              min="0"
+                              max="100000000"
+                              step="50"
+                              value={reserve}
+                              onChange={(e) => setReserve(e.target.value)}
+                            />
+                          </div>
+                          <small>Protected from buying recommendations.</small>
+                        </label>
+                        <label className="field-label">
+                          Minimum trade value
+                          <div className="money-input">
+                            <span>{currency}</span>
+                            <input
+                              aria-label="Minimum trade value"
+                              type="number"
+                              min="1"
+                              max="10000000"
+                              step="25"
+                              value={minimum}
+                              onChange={(e) => setMinimum(e.target.value)}
+                            />
+                          </div>
+                          <small>Skip tiny, low-impact moves.</small>
+                        </label>
+                        <label className="field-label">
+                          Hypothetical new cash
+                          <div className="money-input">
+                            <span>{currency}</span>
+                            <input
+                              aria-label="Hypothetical contribution"
+                              type="number"
+                              min="0"
+                              max="100000000"
+                              step="100"
+                              value={contribution}
+                              onChange={(e) => setContribution(e.target.value)}
+                            />
+                          </div>
+                          <small>A simulation. No money is transferred.</small>
+                        </label>
+                        <label className="field-label">
+                          Add new cash to
+                          <select
+                            aria-label="Contribution account"
+                            value={selectedContributionAccount}
+                            onChange={(e) => setContributionAccount(e.target.value)}
+                          >
+                            {accounts.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.broker} · {a.name}
+                              </option>
+                            ))}
+                          </select>
+                          <small>Cash stays inside the chosen account.</small>
+                        </label>
+                      </div>
+                      <label className="toggle-row">
+                        <div>
+                          <strong>Allow sales in taxable accounts</strong>
+                          <span>Sales may create taxable gains. Tax impact is not estimated.</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={allowTaxableSales}
+                          onChange={(e) => setAllowTaxableSales(e.target.checked)}
+                        />
+                        <span className="switch" aria-hidden="true" />
+                      </label>
+                      <div className="constraint-pills">
+                        <span>
+                          <Check size={13} />
+                          Whole shares only
+                        </span>
+                        <span>
+                          <Check size={13} />
+                          No account transfers
+                        </span>
+                        <span>
+                          <Check size={13} />
+                          No borrowing
+                        </span>
+                      </div>
+                    </section>
+                    <CashProof
+                      accounts={accounts}
+                      plan={currentPlan}
+                      contributionCents={options.contributionCents}
+                      contributionAccountId={options.contributionAccountId}
+                      currency={currency}
+                    />
+                    <section className="card plan-trades">
+                      <div className="section-heading">
+                        <div>
+                          <span className="step-label">03 / REVIEW EVERY MOVE</span>
+                          <h2>
+                            {currentPlan.status === 'blocked'
+                              ? 'Let’s resolve the data first.'
+                              : 'A plan you can understand.'}
+                          </h2>
+                          <p>
+                            {currentPlan.status === 'blocked'
+                              ? 'Balance pauses recommendations when the inputs can’t support them.'
+                              : `${currentPlan.trades.length} proposed moves. Indicative prices. No orders placed.`}
+                          </p>
+                        </div>
+                        <div className="plan-header-actions">
+                          <button
+                            className="button primary small-button"
+                            disabled={
+                              currentPlan.status !== 'ready' ||
+                              !onboarded ||
+                              planBusy ||
+                              loading ||
+                              savingPreferences
+                            }
+                            onClick={() => {
+                              setPlanName(
+                                `My rebalance · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+                              );
+                              setModal('save');
+                            }}
+                          >
+                            <Bookmark size={14} />
+                            Save plan
+                          </button>
+                          {currentPlan.status === 'ready' && currentPlan.trades.length > 0 && (
+                            <button
+                              className="button secondary small-button"
+                              disabled={loading || planBusy || savingPreferences}
+                              onClick={exportPlan}
+                            >
+                              <Download size={14} />
+                              Export CSV
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {currentPlan.status === 'blocked' ? (
+                        <div className="blocker-list" role="status">
+                          {currentPlan.blockers.map((b, i) => (
+                            <div key={i}>
+                              <ShieldCheck size={19} />
+                              <span>{b}</span>
+                            </div>
+                          ))}
+                          <div className="blocker-actions">
+                            {canClassify && (
+                              <button
+                                className="button secondary small-button"
+                                onClick={() => setModal('classify')}
+                              >
+                                Review classifications
+                              </button>
+                            )}
+                            {mode === 'live' && (
+                              <>
+                                <button
+                                  className="button secondary small-button"
+                                  disabled={loading}
+                                  onClick={() => void loadLive()}
+                                >
+                                  <RefreshCw size={14} />
+                                  Reload snapshots
+                                </button>
+                                <a
+                                  className="text-button"
+                                  href="https://dashboard.snaptrade.com"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Manage brokerage connection <ArrowUpRight size={14} />
+                                </a>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ) : currentPlan.trades.length === 0 ? (
+                        <div className="empty-state">
+                          <CheckCheck size={30} />
+                          <h3>No practical moves within these boundaries.</h3>
+                          <p>
+                            You may already be close to target, or account cash and whole shares
+                            limit further progress. Try a contribution or adjust your constraints.
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="trade-sequence">
+                            <span>1. Review sells</span>
+                            <ChevronRight size={13} />
+                            <span>2. Wait for settlement</span>
+                            <ChevronRight size={13} />
+                            <span>3. Review buys</span>
+                          </div>
+                          {[...currentPlan.trades]
+                            .sort(
+                              (a, b) => (a.side === 'sell' ? 0 : 1) - (b.side === 'sell' ? 0 : 1),
+                            )
+                            .map((t, i) => (
+                              <TradeRow
+                                key={`${t.accountId}-${t.symbol}-${t.side}-${i}`}
+                                trade={t}
+                                currency={currency}
+                              />
+                            ))}
+                        </>
+                      )}
+                    </section>
+                  </div>
+                  <aside className="plan-sidebar">
+                    <section className="plan-summary">
+                      <span className="eyebrow">THE POTENTIAL PICTURE</span>
+                      <h2>
+                        Closer to your
+                        <br />
+                        kind of balance.
+                      </h2>
+                      <div className="drift-comparison">
+                        <div>
+                          <span>Current drift</span>
+                          <strong>
+                            {currentPlan.status === 'blocked'
+                              ? '—'
+                              : `${currentPlan.driftBefore.toFixed(1)}`}
+                            <small> pp</small>
+                          </strong>
+                        </div>
+                        <ArrowRight size={20} />
+                        <div>
+                          <span>After plan</span>
+                          <strong>
+                            {currentPlan.status === 'blocked'
+                              ? '—'
+                              : `${currentPlan.driftAfter.toFixed(1)}`}
+                            <small> pp</small>
+                          </strong>
+                        </div>
+                      </div>
+                      {currentPlan.status === 'ready' &&
+                        currentPlan.driftBefore > 0 &&
+                        currentPlan.driftAfter < currentPlan.driftBefore && (
+                          <div className="improvement">
+                            <Check size={14} />
+                            {((1 - currentPlan.driftAfter / currentPlan.driftBefore) * 100).toFixed(
+                              1,
+                            )}
+                            % less allocation drift
+                          </div>
+                        )}
+                      {currentPlan.status === 'ready' &&
+                        currentPlan.driftAfter > currentPlan.driftBefore && (
+                          <p className="plan-warning">
+                            Funding cash reserves increases drift by{' '}
+                            {(currentPlan.driftAfter - currentPlan.driftBefore).toFixed(1)} pp.
+                          </p>
+                        )}
+                      <dl className="plan-numbers">
+                        <div>
+                          <dt>Estimated sells</dt>
+                          <dd>
+                            {currentPlan.status === 'blocked' ? '—' : money(plannedSells, currency)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Estimated buys</dt>
+                          <dd>
+                            {currentPlan.status === 'blocked' ? '—' : money(plannedBuys, currency)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>New cash (hypothetical)</dt>
+                          <dd>
+                            {cannotCombineValues
+                              ? '—'
+                              : money(options.contributionCents, currency, 2)}
+                          </dd>
+                        </div>
+                        <div className="total">
+                          <dt>Cash remaining</dt>
+                          <dd>
+                            {currentPlan.status === 'blocked'
+                              ? '—'
+                              : money(currentPlan.cashAfterCents, currency, 2)}
+                          </dd>
+                        </div>
+                      </dl>
+                      <p className="summary-note">
+                        <LockKeyhole size={15} />
+                        This is a simulation. You review and place any trades with your brokerage.
+                      </p>
+                    </section>
+                    <section className="plan-caveats">
+                      <div>
+                        <CircleHelp size={16} />
+                        <h3>The details matter.</h3>
+                      </div>
+                      <p>
+                        Whole shares and account-level cash can prevent a perfect match. Prices may
+                        change; fees, taxes, settlement time, and FX are not modeled.
+                      </p>
+                      {currentPlan.warnings.map((w, i) => (
+                        <p key={i} className="plan-warning">
+                          {w}
+                        </p>
+                      ))}
+                      <button className="text-button" onClick={() => setModal('method')}>
+                        Read the methodology <ArrowUpRight size={13} />
+                      </button>
+                    </section>
+                  </aside>
+                </div>
+              )}
+
+              {view === 'plans' && (
+                <SavedPlans
+                  plans={plans}
+                  mode={mode}
+                  loading={plansLoading}
+                  error={plansError}
+                  onReload={() => void reloadPlans()}
+                  busy={planBusy}
+                  onInspect={(id) => void inspectPlan(id)}
+                  onRemove={(plan) => {
+                    if (mode === 'demo') void removePlan(plan);
+                    else {
+                      setPendingDelete(plan);
+                      setModal('delete-plan');
+                    }
+                  }}
+                  onBuild={() => navigate('rebalance')}
+                />
+              )}
+
+              {view === 'connections' && (
+                <>
+                  <section className="connection-intro">
+                    <div className="connection-intro-icon">
+                      <Link2 size={28} />
+                    </div>
+                    <div>
+                      <span className="eyebrow">BUILT ON SNAPTRADE</span>
+                      <h2>Your accounts. A single point of view.</h2>
+                      <p>
+                        Add or reconnect brokerages in your SnapTrade Personal dashboard. Return
+                        here to load the latest available account snapshots.
                       </p>
                     </div>
-                    {currentPlan.status === 'ready' && currentPlan.trades.length > 0 && (
-                      <button className="button secondary small-button" onClick={exportPlan}>
-                        <Download size={14} />
-                        Export CSV
+                    <a
+                      className="button primary"
+                      href={mode === 'demo' ? '/app' : 'https://dashboard.snaptrade.com'}
+                      target={mode === 'live' ? '_blank' : undefined}
+                      rel={mode === 'live' ? 'noreferrer' : undefined}
+                    >
+                      {mode === 'demo' ? 'Connect real accounts' : 'Manage brokerage accounts'}
+                      <ArrowUpRight size={16} />
+                    </a>
+                  </section>
+                  <div className="section-heading standalone">
+                    <div>
+                      <h2>
+                        {portfolio.mode === 'demo'
+                          ? 'Explore with sample accounts'
+                          : 'Your connected accounts'}
+                      </h2>
+                      <p>
+                        {portfolio.mode === 'demo'
+                          ? 'These are illustrative accounts, ready for a test drive.'
+                          : 'Balances and holdings are retrieved securely from SnapTrade.'}
+                      </p>
+                    </div>
+                    {portfolio.mode === 'live' && (
+                      <button
+                        className="button secondary"
+                        disabled={loading}
+                        onClick={() => void loadLive()}
+                      >
+                        <RefreshCw size={15} className={loading ? 'spin' : ''} />
+                        Reload snapshots
                       </button>
                     )}
                   </div>
-                  {currentPlan.status === 'blocked' ? (
-                    <div className="blocker-list" role="status">
-                      {currentPlan.blockers.map((b, i) => (
-                        <div key={i}>
-                          <ShieldCheck size={19} />
-                          <span>{b}</span>
+                  <div className="connection-grid">
+                    {portfolio.accounts.map((a) => (
+                      <section className="card connection-card" key={a.id}>
+                        <div className="connection-card-top">
+                          <BrokerIcon broker={a.broker} />
+                          <span className={`connection-tag ${a.issues.length ? 'issue' : ''}`}>
+                            <span />
+                            {a.issues.length
+                              ? 'Needs review'
+                              : portfolio.mode === 'demo'
+                                ? 'Demo'
+                                : 'Connected'}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  ) : currentPlan.trades.length === 0 ? (
-                    <div className="empty-state">
-                      <CheckCheck size={30} />
-                      <h3>No practical moves within these boundaries.</h3>
-                      <p>
-                        You may already be close to target, or account cash and whole shares limit
-                        further progress. Try a contribution or adjust your constraints.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="trade-sequence">
-                        <span>1. Review sells</span>
-                        <ChevronRight size={13} />
-                        <span>2. Wait for settlement</span>
-                        <ChevronRight size={13} />
-                        <span>3. Review buys</span>
-                      </div>
-                      {[...currentPlan.trades]
-                        .sort((a, b) => (a.side === 'sell' ? 0 : 1) - (b.side === 'sell' ? 0 : 1))
-                        .map((t, i) => (
-                          <TradeRow
-                            key={`${t.accountId}-${t.symbol}-${t.side}-${i}`}
-                            trade={t}
-                            currency={currency}
-                          />
+                        <h3>{a.broker}</h3>
+                        <p>
+                          {a.name} <span>· {a.number}</span>
+                        </p>
+                        <strong className="connection-value">
+                          {money(accountValueCents(a), a.currency, 2)}
+                          <small>
+                            {needsValueReview(a) ? `Known subtotal · ${a.currency}` : a.currency}
+                          </small>
+                        </strong>
+                        <div className="connection-details">
+                          <span>{a.type === 'retirement' ? 'Retirement' : 'Taxable'}</span>
+                          <span>
+                            {a.positions.filter((p) => !p.cashEquivalent).length} holdings
+                          </span>
+                        </div>
+                        <div className="connection-freshness">
+                          <span className="status-dot" />
+                          {freshness(a)}
+                        </div>
+                        <p className="account-asof">
+                          {a.syncedAt
+                            ? `As of ${new Date(a.syncedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`
+                            : 'Snapshot time unavailable'}
+                        </p>
+                        {a.issues.map((issue, i) => (
+                          <p className="account-issue" key={i}>
+                            {issue}
+                          </p>
                         ))}
-                    </>
-                  )}
-                </section>
-              </div>
-              <aside className="plan-sidebar">
-                <section className="plan-summary">
-                  <span className="eyebrow">THE POTENTIAL PICTURE</span>
-                  <h2>
-                    Closer to your
-                    <br />
-                    kind of balance.
-                  </h2>
-                  <div className="drift-comparison">
-                    <div>
-                      <span>Current drift</span>
-                      <strong>
-                        {currentPlan.status === 'blocked'
-                          ? '—'
-                          : `${currentPlan.driftBefore.toFixed(1)}`}
-                        <small> pp</small>
-                      </strong>
-                    </div>
-                    <ArrowRight size={20} />
-                    <div>
-                      <span>After plan</span>
-                      <strong>
-                        {currentPlan.status === 'blocked'
-                          ? '—'
-                          : `${currentPlan.driftAfter.toFixed(1)}`}
-                        <small> pp</small>
-                      </strong>
-                    </div>
-                  </div>
-                  {currentPlan.status === 'ready' &&
-                    currentPlan.driftBefore > 0 &&
-                    currentPlan.driftAfter < currentPlan.driftBefore && (
-                      <div className="improvement">
-                        <Check size={14} />
-                        {((1 - currentPlan.driftAfter / currentPlan.driftBefore) * 100).toFixed(1)}%
-                        less allocation drift
-                      </div>
-                    )}
-                  {currentPlan.status === 'ready' &&
-                    currentPlan.driftAfter > currentPlan.driftBefore && (
-                      <p className="plan-warning">
-                        Funding cash reserves increases drift by{' '}
-                        {(currentPlan.driftAfter - currentPlan.driftBefore).toFixed(1)} pp.
-                      </p>
-                    )}
-                  <dl className="plan-numbers">
-                    <div>
-                      <dt>Estimated sells</dt>
-                      <dd>
-                        {currentPlan.status === 'blocked' ? '—' : money(plannedSells, currency)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Estimated buys</dt>
-                      <dd>
-                        {currentPlan.status === 'blocked' ? '—' : money(plannedBuys, currency)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>New cash (hypothetical)</dt>
-                      <dd>
-                        {cannotCombineValues ? '—' : money(options.contributionCents, currency, 2)}
-                      </dd>
-                    </div>
-                    <div className="total">
-                      <dt>Cash remaining</dt>
-                      <dd>
-                        {currentPlan.status === 'blocked'
-                          ? '—'
-                          : money(currentPlan.cashAfterCents, currency, 2)}
-                      </dd>
-                    </div>
-                  </dl>
-                  <p className="summary-note">
-                    <LockKeyhole size={15} />
-                    This is a simulation. You review and place any trades with your brokerage.
-                  </p>
-                </section>
-                <section className="plan-caveats">
-                  <div>
-                    <CircleHelp size={16} />
-                    <h3>The details matter.</h3>
-                  </div>
-                  <p>
-                    Whole shares and account-level cash can prevent a perfect match. Prices may
-                    change; fees, taxes, settlement time, and FX are not modeled.
-                  </p>
-                  {currentPlan.warnings.map((w, i) => (
-                    <p key={i} className="plan-warning">
-                      {w}
-                    </p>
-                  ))}
-                  <button className="text-button" onClick={() => setModal('method')}>
-                    Read the methodology <ArrowUpRight size={13} />
-                  </button>
-                </section>
-              </aside>
-            </div>
-          )}
-
-          {view === 'connections' && (
-            <>
-              <section className="connection-intro">
-                <div className="connection-intro-icon">
-                  <Link2 size={28} />
-                </div>
-                <div>
-                  <span className="eyebrow">BUILT ON SNAPTRADE</span>
-                  <h2>Your accounts. A single point of view.</h2>
-                  <p>
-                    Sign in with SnapTrade to share your connected brokerage accounts. Balance
-                    requests read-only portfolio access.
-                  </p>
-                </div>
-                <button className="button primary" onClick={() => setModal('connect')}>
-                  Connect with SnapTrade <ArrowUpRight size={16} />
-                </button>
-              </section>
-              <div className="section-heading standalone">
-                <div>
-                  <h2>
-                    {portfolio.mode === 'demo'
-                      ? 'Explore with sample accounts'
-                      : 'Your connected accounts'}
-                  </h2>
-                  <p>
-                    {portfolio.mode === 'demo'
-                      ? 'These are illustrative accounts, ready for a test drive.'
-                      : 'Balances and holdings are retrieved securely from SnapTrade.'}
-                  </p>
-                </div>
-                {portfolio.mode === 'live' && (
-                  <button className="button secondary" disabled={loading} onClick={loadLive}>
-                    <RefreshCw size={15} className={loading ? 'spin' : ''} />
-                    Reload snapshots
-                  </button>
-                )}
-              </div>
-              <div className="connection-grid">
-                {portfolio.accounts.map((a) => (
-                  <section className="card connection-card" key={a.id}>
-                    <div className="connection-card-top">
-                      <BrokerIcon broker={a.broker} />
-                      <span className={`connection-tag ${a.issues.length ? 'issue' : ''}`}>
-                        <span />
-                        {a.issues.length
-                          ? 'Needs review'
-                          : portfolio.mode === 'demo'
-                            ? 'Demo'
-                            : 'Connected'}
-                      </span>
-                    </div>
-                    <h3>{a.broker}</h3>
-                    <p>
-                      {a.name} <span>· {a.number}</span>
-                    </p>
-                    <strong className="connection-value">
-                      {money(accountValueCents(a), a.currency, 2)}
-                      <small>
-                        {needsValueReview(a) ? `Known subtotal · ${a.currency}` : a.currency}
-                      </small>
-                    </strong>
-                    <div className="connection-details">
-                      <span>{a.type === 'retirement' ? 'Retirement' : 'Taxable'}</span>
-                      <span>{a.positions.filter((p) => !p.cashEquivalent).length} holdings</span>
-                    </div>
-                    <div className="connection-freshness">
-                      <span className="status-dot" />
-                      {freshness(a)}
-                    </div>
-                    {a.issues.map((issue, i) => (
-                      <p className="account-issue" key={i}>
-                        {issue}
-                      </p>
+                      </section>
                     ))}
-                  </section>
-                ))}
-              </div>
-              <div className="connection-bottom">
-                <div>
-                  <ShieldCheck size={20} />
-                  <div>
-                    <h3>Designed around your privacy.</h3>
-                    <p>
-                      Tokens are encrypted on the server. Balance never asks for your brokerage
-                      password.
-                    </p>
                   </div>
-                </div>
-                {status.connected && (
-                  <button className="text-button danger" disabled={loading} onClick={disconnect}>
-                    {loading ? 'Disconnecting…' : 'Disconnect SnapTrade'}
-                  </button>
-                )}
-              </div>
-              {!status.configured && (
-                <section className="card setup-card">
-                  <span className="step-label">READY TO MAKE IT YOURS?</span>
-                  <h2>Connect real accounts in three steps.</h2>
-                  <ol>
-                    <li>
-                      <span>1</span>
+                  <div className="connection-bottom">
+                    <div>
+                      <ShieldCheck size={20} />
                       <div>
-                        <strong>Create a Commercial workspace</strong>
-                        <p>Register your OAuth app in the SnapTrade dashboard.</p>
-                      </div>
-                      <a
-                        href="https://dashboard.snaptrade.com"
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label="Open SnapTrade dashboard"
-                      >
-                        <ArrowUpRight size={16} />
-                      </a>
-                    </li>
-                    <li>
-                      <span>2</span>
-                      <div>
-                        <strong>Configure your backend</strong>
+                        <h3>Designed around your privacy.</h3>
                         <p>
-                          Set the OAuth credentials, callback URL, encryption key, and production
-                          database using the repository guide.
+                          Tokens are encrypted on the server. Balance never asks for your brokerage
+                          password. Disconnecting ends your Balance session and attempts to revoke
+                          the grant. Saved plans remain until you delete them.
                         </p>
                       </div>
-                    </li>
-                    <li>
-                      <span>3</span>
-                      <div>
-                        <strong>Try the SnapTrade sandbox</strong>
-                        <p>
-                          Use a Personal workspace with a sandbox connection to verify sign-in and
-                          real API responses.
-                        </p>
-                      </div>
-                      <a
-                        href="https://docs.snaptrade.com/docs/oauth-apps"
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label="Read the SnapTrade OAuth guide"
+                    </div>
+                    {status.connected && (
+                      <button
+                        className="text-button danger"
+                        disabled={loading}
+                        onClick={disconnect}
                       >
-                        <ArrowUpRight size={16} />
-                      </a>
-                    </li>
-                  </ol>
-                  <p className="inline-note">
-                    OAuth is not configured on this instance. The sample workspace is fully
-                    interactive.
-                  </p>
-                </section>
+                        {loading ? 'Disconnecting…' : 'Disconnect SnapTrade'}
+                      </button>
+                    )}
+                  </div>
+                  <section className="card connection-data-card">
+                    <div>
+                      <h3>Your saved workspace data</h3>
+                      <p>
+                        {mode === 'demo'
+                          ? 'Clear sample preferences and saved plans from this browser.'
+                          : 'Permanently delete your preferences and plan history. Your SnapTrade connection stays active.'}
+                      </p>
+                    </div>
+                    <button
+                      className="text-button danger"
+                      disabled={planBusy || savingPreferences || loading}
+                      onClick={() => setModal('delete-data')}
+                    >
+                      <Trash2 size={15} />
+                      Delete saved workspace data
+                    </button>
+                  </section>
+                </>
               )}
             </>
           )}
-
           <footer className="page-footer">
             <span>
               <Brand compact />A clear head for your whole portfolio.
@@ -1556,6 +2201,7 @@ export default function Dashboard() {
                   </select>
                 </label>
               )}
+              <a href="/privacy">Privacy</a>
               <button onClick={() => setModal('method')}>
                 Methodology <ArrowUpRight size={12} />
               </button>
@@ -1573,6 +2219,7 @@ export default function Dashboard() {
         <div className="toast" role="status">
           <Check size={17} />
           {notice}
+          {undoPlan && <button onClick={undoDelete}>Undo</button>}
         </div>
       )}
       {modal === 'classify' && (
@@ -1584,8 +2231,11 @@ export default function Dashboard() {
             onApply={(classes, types) => {
               setClassifications(classes);
               setAccountTypes(types);
+              setReviewed((previous) => ({ ...previous, classifications: true }));
               setModal(null);
-              setNotice('Classifications updated. All other data checks still apply.');
+              setNotice(
+                'Classifications updated. Save workspace preferences to keep your choices.',
+              );
             }}
           />
         </Dialog>
@@ -1630,32 +2280,48 @@ export default function Dashboard() {
               </div>
             </li>
           </ul>
-          {status.configured ? (
+          {mode === 'demo' ? (
+            <a className="button primary full-width" href="/app">
+              Open my private workspace <ArrowRight size={17} />
+            </a>
+          ) : status.connected ? (
+            <>
+              <a
+                className="button primary full-width"
+                href="https://dashboard.snaptrade.com"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open SnapTrade Personal dashboard <ArrowUpRight size={17} />
+              </a>
+              <button
+                className="button secondary full-width"
+                disabled={loading}
+                onClick={() => {
+                  setModal(null);
+                  void loadLive();
+                }}
+              >
+                I connected an account, reload <RefreshCw size={16} />
+              </button>
+              <p className="inline-note">
+                Choose your Personal workspace in SnapTrade, add a brokerage, then return to
+                Balance. Reloading reads the latest available snapshot; it does not force a
+                brokerage sync.
+              </p>
+            </>
+          ) : status.configured ? (
             <a className="button primary full-width" href="/api/auth/login">
               Continue with SnapTrade <ArrowUpRight size={17} />
             </a>
           ) : (
-            <>
-              <div className="configuration-note">
-                <strong>Real accounts need a little setup.</strong>
-                <p>
-                  This instance is running in demo mode. Configure your SnapTrade OAuth app to
-                  enable sign-in.
-                </p>
-              </div>
-              <button
-                className="button primary full-width"
-                onClick={() => {
-                  setModal(null);
-                  navigate('connections');
-                }}
-              >
-                View connection setup <ArrowRight size={17} />
-              </button>
-            </>
+            <div className="configuration-note">
+              <strong>Connections are temporarily unavailable.</strong>
+              <p>Please try again later. The sample workspace is available at any time.</p>
+            </div>
           )}
           <button className="dialog-secondary" onClick={() => setModal(null)}>
-            Keep exploring the demo
+            Back to workspace
           </button>
         </Dialog>
       )}
@@ -1706,8 +2372,9 @@ export default function Dashboard() {
             }
             onClick={() => {
               setTargets(draftTargets.map((t) => ({ ...t })));
+              setReviewed((previous) => ({ ...previous, targets: true }));
               setModal(null);
-              setNotice('Targets updated. Your plan has been recalculated.');
+              setNotice('Targets updated. Save workspace preferences to keep your mix.');
             }}
           >
             Save targets <Check size={17} />
@@ -1717,6 +2384,117 @@ export default function Dashboard() {
             onClick={() => setDraftTargets(defaultTargets.map((t) => ({ ...t })))}
           >
             Reset to illustrative 50 / 30 / 20 mix
+          </button>
+        </Dialog>
+      )}
+      {inspectedPlan && (
+        <SavedPlanDetail plan={inspectedPlan} onClose={() => setInspectedPlan(null)} />
+      )}
+      {modal === 'save' && (
+        <Dialog
+          title="Save this plan"
+          onClose={() => {
+            if (!planBusy) setModal(null);
+          }}
+        >
+          <p className="dialog-lede">
+            {mode === 'demo'
+              ? 'Keep a sample snapshot in this browser, including your targets, constraints, holdings, and proposed moves.'
+              : 'Balance will reload your brokerage snapshots and recalculate the plan on the server before saving. Updated data may produce different moves.'}
+          </p>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void savePlan();
+            }}
+          >
+            <label className="save-name-label">
+              Plan name
+              <input
+                aria-label="Plan name"
+                value={planName}
+                onChange={(event) => setPlanName(event.target.value)}
+                autoFocus
+                maxLength={80}
+                required
+                disabled={planBusy}
+                placeholder="e.g. October contribution"
+              />
+            </label>
+            {error && (
+              <p role="alert" className="form-error">
+                {error}
+              </p>
+            )}
+            <div className="historical-notice">
+              <ShieldCheck size={18} />
+              <p>A saved plan is a historical simulation. It cannot execute trades.</p>
+            </div>
+            <button
+              className="button primary full-width"
+              disabled={planBusy || !planName.trim() || planName.trim().length > 80}
+              type="submit"
+            >
+              {planBusy ? <LoaderCircle className="spin" size={16} /> : <Bookmark size={16} />}
+              {planBusy ? 'Saving snapshot…' : 'Save plan snapshot'}
+            </button>
+          </form>
+        </Dialog>
+      )}
+      {modal === 'delete-plan' && pendingDelete && (
+        <Dialog
+          title="Delete this saved plan?"
+          onClose={() => {
+            if (!planBusy) setModal(null);
+          }}
+        >
+          <p className="dialog-lede">
+            “{pendingDelete.name}” and its historical snapshot will be permanently removed from your
+            workspace.
+          </p>
+          {error && (
+            <p role="alert" className="form-error">
+              {error}
+            </p>
+          )}
+          <button
+            className="button danger-button full-width"
+            disabled={planBusy}
+            onClick={() => void removePlan(pendingDelete)}
+          >
+            {planBusy ? 'Deleting plan…' : 'Delete saved plan'}
+          </button>
+          <button className="dialog-secondary" disabled={planBusy} onClick={() => setModal(null)}>
+            Keep plan
+          </button>
+        </Dialog>
+      )}
+      {modal === 'delete-data' && (
+        <Dialog
+          title="Delete saved workspace data?"
+          onClose={() => {
+            if (!planBusy) setModal(null);
+          }}
+        >
+          <p className="dialog-lede">
+            This permanently deletes your saved preferences and every plan snapshot
+            {mode === 'demo' ? ' from this browser' : ''}. Your brokerage accounts and SnapTrade
+            connection are unaffected.
+          </p>
+          {error && (
+            <p role="alert" className="form-error">
+              {error}
+            </p>
+          )}
+          <button
+            className="button danger-button full-width"
+            disabled={planBusy}
+            onClick={() => void deleteWorkspaceData()}
+          >
+            {planBusy ? 'Deleting workspace data…' : 'Delete all saved data'}
+          </button>
+          <button className="dialog-secondary" disabled={planBusy} onClick={() => setModal(null)}>
+            Keep my data
           </button>
         </Dialog>
       )}
