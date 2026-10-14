@@ -146,6 +146,14 @@ Before wider connected access, finish SnapTrade production approval, register pr
 
 The public project URL is [balance-snaptrade.vercel.app](https://balance-snaptrade.vercel.app), with the intended callback `https://balance-snaptrade.vercel.app/api/auth/callback`.
 
+The combined product and interface release was staged, checked, and promoted on October 14, 2026: deployment `dpl_5dkz2sQ5BKhJUTmuNqj2cXNW1KYg`, application commit `3e477f5`, Node.js 22. [Release CI passed](https://github.com/meetgojiya98/SnapTrade/actions/runs/38624124189): 195 unit/integration tests, 10 migration tests, and 38 Chromium tests, plus dependency advisory checks, type checking, and production build.
+
+Staged verification confirmed database/schema readiness, the public guide and canonical URL, and anonymous portfolio rejection with no-store headers and safe error references. After promotion, the public landing, guide, and support returned successfully. The existing real Sandbox-authorized workspace loaded three accounts and its saved policy/history on the new deployment. Opening the retained historical plan confirmed its original USD 250 reserve, USD 5,000 reported cash, USD 4,750 planning base, and zero trades. No new brokerage grant, database migration, or credential rotation was needed for this release.
+
+The two new backend failure regressions reproduce a delayed OAuth rejection after a newer successful rotation and a disconnect while a retry is pending. Six streamed-response tests verify byte limits, cancellation, multibyte decoding, rate limits, and mid-body failures. These are controlled protocol tests, rather than claims that those failures were forced against SnapTrade production.
+
+### Earlier live integration evidence
+
 Verified October 14, 2026 against deployment `dpl_HnNh4voiTSKfAx2pLjzvybTV9uGr`, application commit `5fbe98e`, and the dedicated Neon database. [CI passed](https://github.com/meetgojiya98/SnapTrade/actions/runs/38616983506): 184 unit/integration tests, 10 migration tests, and 36 Chromium tests, with type checking and production build.
 
 | Live check                           | Observed result                                                                                                                                                                                 |
