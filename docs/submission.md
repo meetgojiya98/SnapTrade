@@ -124,3 +124,9 @@ The repository does not submit an application on your behalf. Include a short, c
 Suggested project description:
 
 > BALANCE is a read-only portfolio rebalancing simulator for investors with multiple brokerage accounts. It turns target allocations into whole-share, account-funded plans, keeps taxable sales behind an explicit choice, and makes residual cash and data limitations visible. SnapTrade OAuth provides the account data; proposed changes remain simulations. The planner favors feasible, explainable results and does not model fees, realized taxes, settlement, FX conversion, or a globally optimal allocation.
+
+## Current deployment
+
+The public demo is at [balance-snaptrade.vercel.app](https://balance-snaptrade.vercel.app). It is deployed from this repository in the `balance-snaptrade` Vercel project. The public portfolio and rebalancing flow have been checked on production. Real SnapTrade OAuth remains unconfigured until you complete the Commercial app and production database setup above.
+
+Use `https://balance-snaptrade.vercel.app` as `APP_URL` and register `https://balance-snaptrade.vercel.app/api/auth/callback` when configuring this deployment.

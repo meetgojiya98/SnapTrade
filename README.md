@@ -2,6 +2,8 @@
 
 **A clearer way to rebalance a portfolio spread across brokerage accounts.**
 
+[Open the live demo](https://balance-snaptrade.vercel.app) · [Review the rebalance screen](docs/images/rebalance.png)
+
 BALANCE connects to SnapTrade with read-only OAuth and turns a target allocation into an explainable, account-by-account simulation. It answers a practical question: “How close can I get to my allocation with the cash and whole shares I actually have?”
 
 The difficult part is respecting the boundaries real portfolios have. Cash belongs to a particular account. A taxable sale needs an explicit choice. Different currencies cannot be added without an exchange rate. Prices and connections can be stale. BALANCE makes those constraints visible alongside its result.
