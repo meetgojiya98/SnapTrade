@@ -1,6 +1,6 @@
 # Deployment and SnapTrade submission
 
-BALANCE v2 implements the full product path: public explanation, explicit sample entry, private connection/loading states, reviewed workspace preferences, an account-funded simulation, and immutable saved history. **Real SnapTrade authorization and deployed persistence are still pending verification.** This guide separates setup from the evidence required for release.
+BALANCE v2 implements the full product path: public explanation, explicit sample entry, private connection/loading states, reviewed workspace preferences, an account-funded simulation, and immutable saved history. Real SnapTrade OAuth and production persistence were verified with simulated Sandbox accounts on October 14, 2026. This guide records that evidence and the remaining public-launch requirements.
 
 ## 1. Register OAuth and a Personal test user
 
@@ -134,4 +134,22 @@ Suggested project description:
 
 The public project URL is [balance-snaptrade.vercel.app](https://balance-snaptrade.vercel.app), with the intended callback `https://balance-snaptrade.vercel.app/api/auth/callback`.
 
-**Pending:** real Personal-user consent, actual brokerage-data normalization, and deployed session/preferences/history persistence. Update this section with dated evidence after completing those checks; do not infer them from the sample workspace or mocked browser suite.
+Verified October 14, 2026 against deployment `dpl_HnNh4voiTSKfAx2pLjzvybTV9uGr`, application commit `5fbe98e`, and the dedicated Neon database. [CI passed](https://github.com/meetgojiya98/SnapTrade/actions/runs/38616983506): 184 unit/integration tests, 10 migration tests, and 36 Chromium tests, with type checking and production build.
+
+| Live check                           | Observed result                                                                                                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Configuration and private boundaries | Complete runtime schema ready; anonymous portfolio, workspace, and history requests return 401 with no-store headers.                                                                           |
+| Real OAuth                           | Personal test user approved only `openid read`; the HTTPS callback verified the ID token and opened a connected workspace.                                                                      |
+| Cancelled consent                    | Returned a useful cancellation message and the private sign-in gate, with no sample substitution.                                                                                               |
+| Actual Sandbox responses             | Loaded two self-directed accounts and one additional cash-only account. Stock prices and cash normalized; unsupported crypto/mutual-fund instruments remained blocking issues.                  |
+| Real policy and plan persistence     | Saved a cash-only snapshot with USD 5,000 reported cash, USD 250 reserve, and zero proposed trades. Independent database inspection confirmed encrypted session, preference, and plan payloads. |
+| Immutable historical policy          | Changed the current reserve to USD 500; the saved snapshot retained USD 250, its original source timestamp, and USD 4,750 planning base.                                                        |
+| Historical CSV                       | Downloaded from the deployed app and verified original policy, saved/source timestamps, USD 5,000 cash, masked account identity, and historical/read-only labeling.                             |
+| Disconnect                           | The real revocation response succeeded; local sessions and session cache became empty while preferences and plan history remained.                                                              |
+| Return after redeployment            | Reauthorized on the new deployment; the selected cash account, USD 500 current reserve, and saved USD 250 historical policy returned from Neon.                                                 |
+
+The database uses a restricted runtime role with CRUD access to application tables; migration/admin credentials are not deployed. Compute is capped at 0.25 CU and suspends after five idle minutes. The initial verification snapshot is retained in the Personal test workspace for inspection.
+
+**Remaining release limits:** the configured OAuth app is Test-only (five users). Complete SnapTrade's production approval and register a Production OAuth app before public rollout. The consent name comes from the Commercial customer/workspace name. Real-money brokerage accounts and a second external Personal identity have not been tested. Nonzero rebalance scenarios, cross-user isolation, forced outages, deletion races, rate limits, and token-rotation races are covered by the automated suites rather than claimed as live Sandbox observations.
+
+The cash-only Sandbox has no existing securities to buy, so zero trades is the correct result. Unsupported assets are not omitted to manufacture a plan. For a nonzero reviewer walkthrough, use the explicit sample workspace or a supported stock/ETF account.

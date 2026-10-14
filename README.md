@@ -60,7 +60,9 @@ npm run test:e2e
 
 Postgres tests require `TEST_DATABASE_URL` pointing to a disposable loopback database named `balance_test…`; otherwise those checks skip. GitHub Actions provisions that database and runs the full verification workflow. Browser tests use port 3001 and controlled API fixtures for connected flows. Set `CAPTURE_SCREENSHOTS=1` to refresh the sample screenshots.
 
-**Real SnapTrade OAuth authorization and deployed database persistence remain pending verification.** The public URL and successful automated checks do not establish those properties. Complete the [live release checks](docs/submission.md) before describing the connected product as verified.
+**Verified against the deployed app with real SnapTrade OAuth and simulated Sandbox accounts:** consent and cancellation, account reads, encrypted preferences and plan history, immutable historical policy/CSV, disconnect, and recovery after redeployment and reauthorization. See the [dated release evidence](docs/submission.md#deployment-verification-status).
+
+This is a Test OAuth release, limited by SnapTrade to five users. Public rollout requires [SnapTrade production approval](https://docs.snaptrade.com/docs/oauth-apps). The default Sandbox includes unsupported crypto and mutual-fund holdings; these correctly block planning. A separate cash-only Sandbox account verified a zero-trade historical snapshot. Nonzero rebalancing moves are verified with deterministic stock/ETF fixtures; real-money brokerage accounts have not been tested.
 
 ## Stack
 
